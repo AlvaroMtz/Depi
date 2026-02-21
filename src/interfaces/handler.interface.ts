@@ -15,7 +15,7 @@ export interface Handler<T = unknown> {
    * Class property name to set/replace value of.
    * Used if handler is applied on a class property.
    */
-  propertyName?: string;
+  propertyName?: string | undefined;
 
   /**
    * Parameter index to set/replace value of.

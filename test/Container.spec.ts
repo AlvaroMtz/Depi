@@ -169,7 +169,10 @@ describe('Container', function () {
     it('should have ability to pre-specify class initialization parameters', function () {
       @Service()
       class ExtraService {
-        constructor(public luckyNumber: number, public message: string) {}
+        constructor(
+          public luckyNumber: number,
+          public message: string
+        ) {}
       }
 
       Container.registerHandler({
@@ -214,10 +217,10 @@ describe('Container', function () {
 
     it('should inject the right value in subclass constructor params', function () {
       function CustomInject(value: any) {
-        return function (target: Constructable<any>, propertyName: string, index: number) {
+        return function (target: any, propertyName: string | symbol | undefined, index: number) {
           Container.registerHandler({
             object: target,
-            propertyName: propertyName,
+            propertyName: propertyName as string | undefined,
             index: index,
             value: containerInstance => value,
           });

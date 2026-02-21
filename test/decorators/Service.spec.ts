@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { Container } from '../../src/index';
+import { Container, ContainerInstance } from '../../src/index';
 import { Service } from '../../src/decorators/service.decorator';
 import { Token } from '../../src/token.class';
 
@@ -31,7 +31,10 @@ describe('Service Decorator', function () {
     class SecondTestService {}
     @Service()
     class TestServiceWithParameters {
-      constructor(public testClass: TestService, public secondTest: SecondTestService) {}
+      constructor(
+        public testClass: TestService,
+        public secondTest: SecondTestService
+      ) {}
     }
     expect(Container.get(TestServiceWithParameters)).toBeInstanceOf(TestServiceWithParameters);
     expect(Container.get(TestServiceWithParameters).testClass).toBeInstanceOf(TestService);
@@ -50,7 +53,10 @@ describe('Service Decorator', function () {
 
     @Service({ factory: createCar })
     class Car {
-      constructor(public name: string, public engine: Engine) {}
+      constructor(
+        public name: string,
+        public engine: Engine
+      ) {}
     }
 
     expect(Container.get(Car).name).toBe('BMW');
@@ -75,7 +81,10 @@ describe('Service Decorator', function () {
     @Service({ factory: [CarFactory, 'createCar'] })
     class Car {
       name: string;
-      constructor(name: string, public engine: Engine) {
+      constructor(
+        name: string,
+        public engine: Engine
+      ) {
         this.name = name;
       }
     }
@@ -169,7 +178,7 @@ describe('Service Decorator', function () {
     Container.set({ id: myToken, value: 'test_string' });
     Container.set({
       id: 'my-service-A',
-      factory: function myServiceFactory(container): string {
+      factory: function myServiceFactory(container: ContainerInstance): string {
         return container.get(myToken).toUpperCase();
       },
     });
@@ -180,7 +189,7 @@ describe('Service Decorator', function () {
      */
     Service({
       id: 'my-service-B',
-      factory: function myServiceFactory(container): string {
+      factory: function myServiceFactory(container: ContainerInstance): string {
         return container.get(myToken).toUpperCase();
       },
     })(null);

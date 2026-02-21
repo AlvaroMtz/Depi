@@ -13,7 +13,10 @@ export class CannotInjectValueError extends Error {
     );
   }
 
-  constructor(private target: Constructable<unknown>, private propertyName: string) {
+  constructor(
+    private target: Constructable<unknown>,
+    private propertyName: string
+  ) {
     super();
   }
 }
