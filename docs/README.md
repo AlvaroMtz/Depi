@@ -138,7 +138,10 @@ class CarFactory {
 
 @Service({ factory: [CarFactory, 'create'] })
 class Car {
-  constructor(public model: string, public logger: LoggerInterface) {}
+  constructor(
+    public model: string,
+    public logger: LoggerInterface
+  ) {}
 }
 ```
 
