@@ -209,7 +209,7 @@ Created `docs/DECORATORS.md` explaining:
 
 ---
 
-## Phase 5: API Cleanup
+## Phase 5: API Cleanup ✅
 
 > **Goal**: Remove deprecated functionality and improve developer experience
 > **Duration**: 1 week
@@ -224,17 +224,14 @@ Created `docs/DECORATORS.md` explaining:
 - v0.11.x: Warning added ✅
 - v1.0.0: Remove auto-creation behavior (breaking change)
 
-### 5.2 Additional Custom Errors
+### 5.2 Additional Custom Errors ✅
 
 **Completed**:
 
 - `CircularDependencyError` ✅
-
-**Remaining**:
-
-- [ ] `ContainerDisposedError`
-- [ ] `ContainerRegistrationError`
-- [ ] `ServiceResolutionError`
+- `ContainerDisposedError` ✅
+- `ContainerRegistrationError` ✅
+- `ServiceResolutionError` ✅
 
 ---
 
@@ -259,16 +256,22 @@ Created `docs/DECORATORS.md` explaining:
 - Decorator migration postponed
 - Documentation added explaining decision
 
-### v0.14.0 - Phase 4 Complete
+### v0.14.0 - Phase 4 Complete ✅
 
-- Modern build tools (partial)
-- Improved test coverage
-- Additional custom errors
+- Integration test suite
+- Improved test coverage (119 tests, 89.36% statements)
+- Error class coverage improvements
 
-### v1.0.0 - Phase 5 Complete
+### v0.15.0 - Phase 5 Complete ✅
+
+- Additional custom error classes (ContainerDisposedError, ContainerRegistrationError, ServiceResolutionError)
+- Enhanced error handling and developer experience
+- 6 custom error classes with comprehensive test coverage
+
+### v1.0.0 - Future Release
 
 - All breaking changes
-- Deprecated APIs removed
+- Container.of() auto-creation removed
 - Full ESM support
 - Major version bump
 
