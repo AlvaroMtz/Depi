@@ -1,40 +1,88 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+    branches: [main, develop, master]
+  pull_request:
+    branches: [main, develop, master]
+
 jobs:
   checks:
     name: Linters
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
       - run: npm ci --ignore-scripts
       - run: npm run prettier:check
       - run: npm run lint:check
+
   tests:
-    name: Tests
+    name: Tests (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
       - run: npm ci --ignore-scripts
       - run: npm run test:ci
-      - run: npm install codecov -g
-      - run: codecov -f ./coverage/clover.xml -t ${{ secrets.CODECOV_TOKEN }}
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
         with:
-            node-version: 'lts/*'
+          files: ./coverage/clover.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  build:
+    name: Build (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 22.x]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+            node-version: ${{ matrix.node-version }}
+            cache: 'npm'
       - run: npm ci --ignore-scripts
       - run: npm run build:es2015
       - run: npm run build:esm5
       - run: npm run build:cjs
       - run: npm run build:umd
       - run: npm run build:types
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-node-${{ matrix.node-version }}
+          path: |
+            build/
+            cjs/
+            esm5/
+            esm2015/
+            types/
+            bundles/
+          retention-days: 7
+
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - run: npx tsc --noEmit

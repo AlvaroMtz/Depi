@@ -15,10 +15,30 @@ import { ContainerScope } from './types/container-scope.type';
 /**
  * TypeDI can have multiple containers.
  * One container is ContainerInstance.
+ *
+ * Implements AsyncDisposable to support modern resource cleanup patterns.
+ * You can use `await using` statement to automatically dispose containers:
+ *
+ * @example
+ * ```ts
+ * {
+ *   await using container = new ContainerInstance('temp');
+ *   container.set({ id: 'service', type: Service });
+ *   // container is automatically disposed at the end of scope
+ * }
+ * ```
  */
-export class ContainerInstance {
+export class ContainerInstance implements AsyncDisposable {
   /** Container instance id. */
   public readonly id!: ContainerIdentifier;
+
+  /**
+   * Symbol.asyncDispose implementation for explicit disposal and `await using` statements.
+   * This is an alias for the dispose() method.
+   */
+  [Symbol.asyncDispose](): Promise<void> {
+    return this.dispose();
+  }
 
   /** Metadata for all registered services in this container. */
   private metadataMap: Map<ServiceIdentifier, ServiceMetadata<unknown>> = new Map();
@@ -166,6 +186,13 @@ export class ContainerInstance {
 
     /** Otherwise it's returned from the current container. */
     if (metadata) {
+      // Warn if trying to get an async service synchronously
+      if (metadata.async) {
+        console.warn(
+          `Service "${String(identifier)}" requires async initialization. ` +
+            `Use "await Container.getAsync()" instead.`
+        );
+      }
       return this.getServiceValue(metadata);
     }
 
@@ -189,6 +216,70 @@ export class ContainerInstance {
     }
 
     throw new ServiceNotFoundError(identifier);
+  }
+
+  /**
+   * Asynchronously retrieves and initializes a service.
+   * Use this for services with async initialization (factories or lifecycle hooks).
+   */
+  public async getAsync<T = unknown>(identifier: ServiceIdentifier<T>): Promise<T> {
+    this.throwIfDisposed();
+
+    const global = ContainerRegistry.defaultContainer.metadataMap.get(identifier);
+    const local = this.metadataMap.get(identifier);
+    const metadata = global?.scope === 'singleton' ? global : local;
+
+    if (metadata && metadata.multiple === true) {
+      throw new Error(`Cannot resolve multiple values for ${identifier.toString()} service!`);
+    }
+
+    if (metadata) {
+      return (await this.getServiceValueAsync(metadata)) as T;
+    }
+
+    if (global && this !== ContainerRegistry.defaultContainer) {
+      const clonedService = { ...global };
+      clonedService.value = EMPTY_VALUE;
+      this.set(clonedService);
+      const value = await this.getServiceValueAsync(clonedService);
+      this.set({ ...clonedService, value });
+      return value as T;
+    }
+
+    throw new ServiceNotFoundError(identifier);
+  }
+
+  /**
+   * Initialize all eager and async services in the container.
+   * Call this at application startup to ensure all services are ready.
+   */
+  public async init(): Promise<void> {
+    this.throwIfDisposed();
+
+    const asyncServices: Array<{ id: ServiceIdentifier; metadata: ServiceMetadata }> = [];
+
+    // Collect all services that need initialization
+    for (const [id, metadata] of this.metadataMap) {
+      if (metadata.eager || metadata.async) {
+        asyncServices.push({ id, metadata });
+      }
+    }
+
+    // Initialize all services concurrently
+    await Promise.all(
+      asyncServices.map(async ({ id, metadata }) => {
+        if (metadata.value === EMPTY_VALUE) {
+          const value = metadata.async
+            ? await this.getServiceValueAsync(metadata)
+            : this.getServiceValue(metadata);
+          // Update the metadata with the initialized value
+          metadata.value = value;
+        } else if (metadata.async && metadata.lifecycle?.onInit) {
+          // Call onInit if already instantiated
+          await metadata.lifecycle.onInit(metadata.value);
+        }
+      })
+    );
   }
 
   /**
@@ -284,8 +375,11 @@ export class ContainerInstance {
      * If the service is eager, we need to create an instance immediately except
      * when the service is also marked as transient. In that case we ignore
      * the eager flag to prevent creating a service what cannot be disposed later.
+     *
+     * Note: For async services, we don't initialize eagerly here - the user
+     * should call Container.init() to initialize all eager services.
      */
-    if (newMetadata.eager && newMetadata.scope !== 'transient') {
+    if (newMetadata.eager && newMetadata.scope !== 'transient' && !newMetadata.async) {
       this.get(newMetadata.id);
     }
 
@@ -317,6 +411,9 @@ export class ContainerInstance {
    *
    * @deprecated Use `createChild()` for child containers or create ContainerInstance directly.
    * This method will be removed in v1.0.0.
+   *
+   * @deprecated Auto-creating containers is deprecated and will be removed in v1.0.0.
+   * Use `new ContainerInstance(id)` or `container.createChild(id)` instead.
    */
   public of(containerId: ContainerIdentifier = 'default'): ContainerInstance {
     this.throwIfDisposed();
@@ -325,24 +422,20 @@ export class ContainerInstance {
       return ContainerRegistry.defaultContainer;
     }
 
-    let container: ContainerInstance;
-
     if (ContainerRegistry.hasContainer(containerId)) {
-      container = ContainerRegistry.getContainer(containerId);
-    } else {
-      /**
-       * @deprecated Auto-creating containers is deprecated behavior.
-       * Use `new ContainerInstance(id)` or `container.createChild(id)` instead.
-       * This will be removed when container inheritance is fully reworked.
-       */
-      console.warn(
-        `Container.of() auto-creation is deprecated. ` +
-          `Use 'new ContainerInstance("${containerId}")' or 'container.createChild("${containerId}")' instead.`
-      );
-      container = new ContainerInstance(containerId);
-      container.register();
+      return ContainerRegistry.getContainer(containerId);
     }
 
+    // Auto-creation is deprecated and will be removed in v1.0.0
+    // For now, we keep it with a deprecation warning
+    const idStr = typeof containerId === 'string' ? containerId : String(containerId);
+    console.warn(
+      `[TypeDI] Container.of("${idStr}") auto-creation is deprecated and will be removed in v1.0.0. ` +
+        `Use 'new ContainerInstance("${idStr}")' or 'container.createChild("${idStr}")' instead.`
+    );
+
+    const container = new ContainerInstance(containerId);
+    container.register();
     return container;
   }
 
@@ -385,16 +478,30 @@ export class ContainerInstance {
     return this;
   }
 
+  /**
+   * Disposes all services in the container.
+   * Calls onDestroy lifecycle hooks if defined.
+   */
   public async dispose(): Promise<void> {
-    this.reset({ strategy: 'resetServices' });
+    // Collect all dispose promises
+    const disposePromises: Promise<void>[] = [];
+
+    this.metadataMap.forEach(service => {
+      const promise = this.disposeServiceInstanceAsync(service);
+      if (promise) {
+        disposePromises.push(promise);
+      }
+    });
+
+    // Wait for all async disposals to complete
+    await Promise.all(disposePromises);
+
+    // Clear the metadata maps
+    this.metadataMap.clear();
+    this.multiServiceIds.clear();
 
     /** We mark the container as disposed, forbidding any further interaction with it. */
     this.disposed = true;
-
-    /**
-     * Placeholder, this function returns a promise in preparation to support async services.
-     */
-    await Promise.resolve();
   }
 
   private throwIfDisposed() {
@@ -636,5 +743,121 @@ export class ContainerInstance {
 
       serviceMetadata.value = EMPTY_VALUE;
     }
+  }
+
+  /**
+   * Asynchronously disposes a service instance.
+   * Calls lifecycle onDestroy hook if defined.
+   *
+   * @param serviceMetadata the service metadata containing the instance to destroy
+   * @returns Promise if async disposal is needed, undefined otherwise
+   */
+  private disposeServiceInstanceAsync(serviceMetadata: ServiceMetadata): Promise<void> | undefined {
+    this.throwIfDisposed();
+
+    const value = serviceMetadata.value;
+    if (value === EMPTY_VALUE) return undefined;
+
+    const shouldResetValue = !!serviceMetadata.type || !!serviceMetadata.factory;
+
+    if (shouldResetValue) {
+      // Call lifecycle onDestroy hook if defined
+      if (serviceMetadata.lifecycle?.onDestroy) {
+        return Promise.resolve()
+          .then(async () => {
+            await serviceMetadata.lifecycle!.onDestroy!(value);
+            // Also call dispose method if it exists
+            if (typeof (value as Record<string, unknown>)['dispose'] === 'function') {
+              await (value as { dispose: () => Promise<void> | void }).dispose();
+            }
+          })
+          .catch(error => {
+            // Ignore errors from disposal
+            console.warn(`Error disposing service "${String(serviceMetadata.id)}":`, error);
+          })
+          .finally(() => {
+            serviceMetadata.value = EMPTY_VALUE;
+          });
+      }
+
+      // Call dispose method if it exists (no async lifecycle hook)
+      if (typeof (value as Record<string, unknown>)['dispose'] === 'function') {
+        try {
+          const disposeResult = (value as { dispose: () => Promise<void> | void }).dispose();
+          if (disposeResult instanceof Promise) {
+            return disposeResult.finally(() => {
+              serviceMetadata.value = EMPTY_VALUE;
+            });
+          }
+        } catch (error) {
+          console.warn(`Error disposing service "${String(serviceMetadata.id)}":`, error);
+        }
+      }
+
+      serviceMetadata.value = EMPTY_VALUE;
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Asynchronously gets and initializes a service value.
+   * Supports async factories and lifecycle hooks.
+   */
+  private async getServiceValueAsync(serviceMetadata: ServiceMetadata<unknown>): Promise<unknown> {
+    let value: unknown = EMPTY_VALUE;
+
+    // If already initialized, return the value
+    if (serviceMetadata.value !== EMPTY_VALUE) {
+      return serviceMetadata.value;
+    }
+
+    // Check for async factory
+    if (serviceMetadata.factory) {
+      if (serviceMetadata.factory instanceof Array) {
+        let factoryInstance;
+        try {
+          factoryInstance = this.get<any>(serviceMetadata.factory[0]);
+        } catch (error) {
+          if (error instanceof ServiceNotFoundError) {
+            factoryInstance = new serviceMetadata.factory[0]();
+          } else {
+            throw error;
+          }
+        }
+        value = factoryInstance[serviceMetadata.factory[1]](this, serviceMetadata.id);
+      } else {
+        value = await serviceMetadata.factory(this, serviceMetadata.id);
+      }
+    } else if (serviceMetadata.type) {
+      const constructableTargetType: Constructable<unknown> = serviceMetadata.type;
+      const paramTypes: unknown[] = (Reflect as any)?.getMetadata('design:paramtypes', constructableTargetType) || [];
+      const params = this.initializeParams(constructableTargetType, paramTypes);
+      params.push(this);
+      value = new constructableTargetType(...params);
+    } else {
+      throw new CannotInstantiateValueError(serviceMetadata.id);
+    }
+
+    if (value === EMPTY_VALUE) {
+      throw new CannotInstantiateValueError(serviceMetadata.id);
+    }
+
+    // Store the value if not transient
+    if (serviceMetadata.scope !== 'transient') {
+      serviceMetadata.value = value;
+    }
+
+    // Apply property handlers
+    if (serviceMetadata.type) {
+      this.applyPropertyHandlers(serviceMetadata.type, value as Record<string, any>);
+    }
+
+    // Call onInit lifecycle hook if defined
+    if (serviceMetadata.lifecycle?.onInit) {
+      await serviceMetadata.lifecycle.onInit(value);
+    }
+
+    return value;
   }
 }
