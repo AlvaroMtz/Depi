@@ -1,5 +1,6 @@
 import { ServiceNotFoundError } from './error/service-not-found.error';
 import { CannotInstantiateValueError } from './error/cannot-instantiate-value.error';
+import { CircularDependencyError } from './error/circular-dependency.error';
 import { Token } from './token.class';
 import { Constructable } from './types/constructable.type';
 import { ServiceIdentifier } from './types/service-identifier.type';
@@ -36,23 +37,72 @@ export class ContainerInstance {
   private readonly handlers: Handler[] = [];
 
   /**
+   * Parent container for inheritance support.
+   * When a container has a parent, it inherits handlers from the parent.
+   */
+  private parent?: ContainerInstance;
+
+  /**
+   * Tracks services currently being resolved to detect circular dependencies.
+   */
+  private resolutionStack: ServiceIdentifier[] = [];
+
+  /**
    * Indicates if the container has been disposed or not.
    * Any function call should fail when called after being disposed.
-   *
-   * NOTE: Currently not in used
    */
   private disposed: boolean = false;
 
-  constructor(id: ContainerIdentifier) {
+  constructor(id: ContainerIdentifier, parent?: ContainerInstance) {
     this.id = id;
+    this.parent = parent;
 
     ContainerRegistry.registerContainer(this);
 
     /**
-     * TODO: This is to replicate the old functionality. This should be copied only
-     * TODO: if the container decides to inherit registered classes from a parent container.
+     * For backward compatibility: if no parent is specified and this is not the default container,
+     * inherit handlers from the default container.
+     * This maintains the legacy behavior while allowing proper parent-child relationships.
      */
-    this.handlers = ContainerRegistry.defaultContainer?.handlers || [];
+    if (!parent && id !== 'default' && ContainerRegistry.defaultContainer) {
+      this.parent = ContainerRegistry.defaultContainer;
+    }
+  }
+
+  /**
+   * Gets all handlers for this container, including inherited handlers from parent containers.
+   * Uses iterative approach to avoid stack overflow with deep hierarchies.
+   */
+  private getAllHandlers(): Handler[] {
+    const result: Handler[] = [];
+    let current: ContainerInstance | undefined = this;
+
+    // Collect handlers from all containers in the hierarchy
+    // Use a simple iteration - no recursion to avoid stack overflow
+    const seen = new Set<string>();
+    while (current) {
+      const key = typeof current.id === 'string' ? current.id : String(current.id);
+      if (seen.has(key)) break; // Prevent circular references
+      seen.add(key);
+
+      result.push(...current.handlers);
+      current = current.parent;
+    }
+
+    return result;
+  }
+
+  /**
+   * Creates a child container that inherits handlers from this container.
+   *
+   * @param childId The unique identifier for the child container
+   * @returns A new child container instance
+   */
+  public createChild(childId: ContainerIdentifier): ContainerInstance {
+    this.throwIfDisposed();
+
+    const child = new ContainerInstance(childId, this);
+    return child;
   }
 
   /**
@@ -89,7 +139,6 @@ export class ContainerInstance {
 
     /**
      * If it's the first time requested in the child container we load it from parent and set it.
-     * TODO: This will be removed with the container inheritance rework.
      */
     if (global && this !== ContainerRegistry.defaultContainer) {
       const clonedService = { ...global };
@@ -193,7 +242,6 @@ export class ContainerInstance {
 
     if (existingMetadata) {
       /** Service already exists, we overwrite it. (This is legacy behavior.) */
-      // TODO: Here we should differentiate based on the received set option.
       Object.assign(existingMetadata, newMetadata);
     } else {
       /** This service hasn't been registered yet, so we register it. */
@@ -234,6 +282,9 @@ export class ContainerInstance {
 
   /**
    * Gets a separate container instance for the given instance id.
+   *
+   * @deprecated Use `createChild()` for child containers or create ContainerInstance directly.
+   * This method will be removed in v1.0.0.
    */
   public of(containerId: ContainerIdentifier = 'default'): ContainerInstance {
     this.throwIfDisposed();
@@ -248,9 +299,14 @@ export class ContainerInstance {
       container = ContainerRegistry.getContainer(containerId);
     } else {
       /**
-       * This is deprecated functionality, for now we create the container if it's doesn't exists.
-       * This will be reworked when container inheritance is reworked.
+       * @deprecated Auto-creating containers is deprecated behavior.
+       * Use `new ContainerInstance(id)` or `container.createChild(id)` instead.
+       * This will be removed when container inheritance is fully reworked.
        */
+      console.warn(
+        `Container.of() auto-creation is deprecated. ` +
+          `Use 'new ContainerInstance("${containerId}")' or 'container.createChild("${containerId}")' instead.`
+      );
       container = new ContainerInstance(containerId);
     }
 
@@ -310,7 +366,6 @@ export class ContainerInstance {
 
   private throwIfDisposed() {
     if (this.disposed) {
-      // TODO: Use custom error.
       throw new Error('Cannot use container after it has been disposed.');
     }
   }
@@ -338,73 +393,102 @@ export class ContainerInstance {
     }
 
     /**
-     * If a factory is defined it takes priority over creating an instance via `new`.
-     * The return value of the factory is not checked, we believe by design that the user knows what he/she is doing.
+     * Detect circular dependencies by checking if this service is already being resolved.
      */
-    if (serviceMetadata.factory) {
+    if (this.resolutionStack.includes(serviceMetadata.id)) {
+      throw new CircularDependencyError(serviceMetadata.id, [...this.resolutionStack]);
+    }
+
+    /** Mark this service as being resolved */
+    this.resolutionStack.push(serviceMetadata.id);
+
+    try {
       /**
-       * If we received the factory in the [Constructable<Factory>, "functionName"] format, we need to create the
-       * factory first and then call the specified function on it.
+       * If a factory is defined it takes priority over creating an instance via `new`.
+       * The return value of the factory is not checked, we believe by design that the user knows what he/she is doing.
        */
-      if (serviceMetadata.factory instanceof Array) {
-        let factoryInstance;
+      if (serviceMetadata.factory) {
+        /**
+         * If we received the factory in the [Constructable<Factory>, "functionName"] format, we need to create the
+         * factory first and then call the specified function on it.
+         */
+        if (serviceMetadata.factory instanceof Array) {
+          let factoryInstance;
 
-        try {
-          /** Try to get the factory from TypeDI first, if failed, fall back to simply initiating the class. */
-          factoryInstance = this.get<any>(serviceMetadata.factory[0]);
-        } catch (error) {
-          if (error instanceof ServiceNotFoundError) {
-            factoryInstance = new serviceMetadata.factory[0]();
-          } else {
-            throw error;
+          try {
+            /** Try to get the factory from TypeDI first, if failed, fall back to simply initiating the class. */
+            factoryInstance = this.get<any>(serviceMetadata.factory[0]);
+          } catch (error) {
+            if (error instanceof ServiceNotFoundError) {
+              factoryInstance = new serviceMetadata.factory[0]();
+            } else {
+              throw error;
+            }
           }
-        }
 
-        value = factoryInstance[serviceMetadata.factory[1]](this, serviceMetadata.id);
-      } else {
-        /** If only a simple function was provided we simply call it. */
-        value = serviceMetadata.factory(this, serviceMetadata.id);
+          value = factoryInstance[serviceMetadata.factory[1]](this, serviceMetadata.id);
+        } else {
+          /** If only a simple function was provided we simply call it. */
+          value = serviceMetadata.factory(this, serviceMetadata.id);
+        }
+      }
+
+      /**
+       * If no factory was provided and only then, we create the instance from the type if it was set.
+       */
+      if (!serviceMetadata.factory && serviceMetadata.type) {
+        const constructableTargetType: Constructable<unknown> = serviceMetadata.type;
+        // setup constructor parameters for a newly initialized service
+        const paramTypes: unknown[] = (Reflect as any)?.getMetadata('design:paramtypes', constructableTargetType) || [];
+        const params = this.initializeParams(constructableTargetType, paramTypes);
+
+        // "extra feature" - always pass container instance as the last argument to the service function
+        // this allows us to support javascript where we don't have decorators and emitted metadata about dependencies
+        // need to be injected, and user can use provided container to get instances he needs
+        params.push(this);
+
+        value = new constructableTargetType(...params);
+      }
+
+      /** If this is not a transient service, and we resolved something, then we set it as the value. */
+      if (serviceMetadata.scope !== 'transient' && value !== EMPTY_VALUE) {
+        serviceMetadata.value = value;
+      }
+
+      if (value === EMPTY_VALUE) {
+        /** This branch should never execute, but better to be safe than sorry. */
+        throw new CannotInstantiateValueError(serviceMetadata.id);
+      }
+
+      /**
+       * Remove this service from the resolution stack BEFORE applying property handlers.
+       * This allows property handlers to circularly reference this service without triggering
+       * the circular dependency detection, since the instance is already created and stored.
+       */
+      const index = this.resolutionStack.indexOf(serviceMetadata.id);
+      if (index !== -1) {
+        this.resolutionStack.splice(index, 1);
+      }
+
+      /**
+       * Apply property handlers AFTER the value has been set and the service is removed from resolution stack.
+       * This prevents infinite loops because @Inject decorators call Container.get,
+       * which will now find the already-set value and return it immediately.
+       *
+       * Property circular references are allowed since the instance already exists.
+       */
+      if (serviceMetadata.type) {
+        this.applyPropertyHandlers(serviceMetadata.type, value as Record<string, any>);
+      }
+
+      return value;
+    } finally {
+      /** Clean up - ensure service is removed from the resolution stack */
+      const index = this.resolutionStack.indexOf(serviceMetadata.id);
+      if (index !== -1) {
+        this.resolutionStack.splice(index, 1);
       }
     }
-
-    /**
-     * If no factory was provided and only then, we create the instance from the type if it was set.
-     */
-    if (!serviceMetadata.factory && serviceMetadata.type) {
-      const constructableTargetType: Constructable<unknown> = serviceMetadata.type;
-      // setup constructor parameters for a newly initialized service
-      const paramTypes: unknown[] = (Reflect as any)?.getMetadata('design:paramtypes', constructableTargetType) || [];
-      const params = this.initializeParams(constructableTargetType, paramTypes);
-
-      // "extra feature" - always pass container instance as the last argument to the service function
-      // this allows us to support javascript where we don't have decorators and emitted metadata about dependencies
-      // need to be injected, and user can use provided container to get instances he needs
-      params.push(this);
-
-      value = new constructableTargetType(...params);
-
-      // TODO: Calling this here, leads to infinite loop, because @Inject decorator registerds a handler
-      // TODO: which calls Container.get, which will check if the requested type has a value set and if not
-      // TODO: it will start the instantiation process over. So this is currently called outside of the if branch
-      // TODO: after the current value has been assigned to the serviceMetadata.
-      // this.applyPropertyHandlers(constructableTargetType, value as Constructable<unknown>);
-    }
-
-    /** If this is not a transient service, and we resolved something, then we set it as the value. */
-    if (serviceMetadata.scope !== 'transient' && value !== EMPTY_VALUE) {
-      serviceMetadata.value = value;
-    }
-
-    if (value === EMPTY_VALUE) {
-      /** This branch should never execute, but better to be safe than sorry. */
-      throw new CannotInstantiateValueError(serviceMetadata.id);
-    }
-
-    if (serviceMetadata.type) {
-      this.applyPropertyHandlers(serviceMetadata.type, value as Record<string, any>);
-    }
-
-    return value;
   }
 
   /**
@@ -412,24 +496,8 @@ export class ContainerInstance {
    */
   private initializeParams(target: Function, paramTypes: any[]): unknown[] {
     return paramTypes.map((paramType, index) => {
-      const paramHandler =
-        this.handlers.find(handler => {
-          /**
-           * @Inject()-ed values are stored as parameter handlers and they reference their target
-           * when created. So when a class is extended the @Inject()-ed values are not inherited
-           * because the handler still points to the old object only.
-           *
-           * As a quick fix a single level parent lookup is added via `Object.getPrototypeOf(target)`,
-           * however this should be updated to a more robust solution.
-           *
-           * TODO: Add proper inheritance handling: either copy the handlers when a class is registered what
-           * TODO: has it's parent already registered as dependency or make the lookup search up to the base Object.
-           */
-          return handler.object === target && handler.index === index;
-        }) ||
-        this.handlers.find(handler => {
-          return handler.object === Object.getPrototypeOf(target) && handler.index === index;
-        });
+      // Use the improved findHandler method that traverses the prototype chain
+      const paramHandler = this.findHandler(target, index);
 
       if (paramHandler) return paramHandler.value(this);
 
@@ -444,6 +512,36 @@ export class ContainerInstance {
   }
 
   /**
+   * Finds a handler for the given target and parameter index.
+   * Traverses the full prototype chain to support multi-level inheritance.
+   */
+  private findHandler(target: Function, index: number): Handler | undefined {
+    const allHandlers = this.getAllHandlers();
+
+    // First, try to find an exact match for the target
+    const exactMatch = allHandlers.find(handler => {
+      return handler.object === target && handler.index === index;
+    });
+
+    if (exactMatch) return exactMatch;
+
+    // If not found, traverse the prototype chain
+    let currentPrototype = Object.getPrototypeOf(target);
+
+    while (currentPrototype && currentPrototype !== Object.prototype) {
+      const prototypeMatch = allHandlers.find(handler => {
+        return handler.object === currentPrototype && handler.index === index;
+      });
+
+      if (prototypeMatch) return prototypeMatch;
+
+      currentPrototype = Object.getPrototypeOf(currentPrototype);
+    }
+
+    return undefined;
+  }
+
+  /**
    * Checks if given parameter type is primitive type or not.
    */
   private isPrimitiveParamType(paramTypeName: string): boolean {
@@ -452,11 +550,27 @@ export class ContainerInstance {
 
   /**
    * Applies all registered handlers on a given target class.
+   * Traverses the prototype chain to find handlers for inherited classes.
    */
   private applyPropertyHandlers(target: Function, instance: { [key: string]: any }) {
-    this.handlers.forEach(handler => {
+    const allHandlers = this.getAllHandlers();
+
+    allHandlers.forEach(handler => {
       if (typeof handler.index === 'number') return;
-      if (handler.object.constructor !== target && !(target.prototype instanceof handler.object.constructor)) return;
+
+      // Check if this handler applies to the target or any prototype in the chain
+      let currentTarget: Function | null = target;
+      let applies = false;
+
+      while (currentTarget && currentTarget !== Object.prototype) {
+        if (handler.object.constructor === currentTarget) {
+          applies = true;
+          break;
+        }
+        currentTarget = Object.getPrototypeOf(currentTarget);
+      }
+
+      if (!applies) return;
 
       if (handler.propertyName) {
         instance[handler.propertyName] = handler.value(this);
