@@ -12,14 +12,14 @@ TypeDI is a dependency injection library for TypeScript/Node.js that requires si
 
 ### Metrics
 
-| Metric | Value |
-|--------|-------|
-| TypeScript Version | 4.9.5 |
-| Target ES | ES2018 |
-| Total Files | 22 |
-| Core Files | 6 |
-| TODOs | 14 |
-| Open Issues | - |
+| Metric             | Value  |
+| ------------------ | ------ |
+| TypeScript Version | 4.9.5  |
+| Target ES          | ES2018 |
+| Total Files        | 22     |
+| Core Files         | 6      |
+| TODOs              | 14     |
+| Open Issues        | -      |
 
 ### Known Technical Debt
 
@@ -58,6 +58,7 @@ private getHandlers(): Handler[] {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Child containers inherit handlers from parent
 - [ ] Handlers from parent are read-only (cannot be modified)
 - [ ] All existing tests pass
@@ -97,6 +98,7 @@ private getServiceValue(serviceMetadata: ServiceMetadata<unknown>): any {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] No infinite loops during property injection
 - [ ] Circular dependencies detected and reported with clear error
 - [ ] All existing tests pass
@@ -125,6 +127,7 @@ private findHandler(target: Function, index: number): Handler | undefined {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Handlers work for multi-level inheritance
 - [ ] Performance impact is minimal
 - [ ] All existing tests pass
@@ -151,6 +154,7 @@ private findHandler(target: Function, index: number): Handler | undefined {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] TypeScript 5.5 installed
 - [ ] Build succeeds with new version
 - [ ] No new type errors introduced
@@ -172,6 +176,7 @@ private findHandler(target: Function, index: number): Handler | undefined {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Target is ES2022
 - [ ] Module resolution is NodeNext
 - [ ] All builds succeed
@@ -180,6 +185,7 @@ private findHandler(target: Function, index: number): Handler | undefined {
 ### 2.3 Consolidate tsconfig Files
 
 **Current**: 6 separate tsconfig files
+
 - tsconfig.json
 - tsconfig.prod.cjs.json
 - tsconfig.prod.esm2015.json
@@ -188,11 +194,13 @@ private findHandler(target: Function, index: number): Handler | undefined {
 - tsconfig.spec.json
 
 **Proposed**: 3 consolidated files
+
 - tsconfig.json (base)
 - tsconfig.build.json (extends base, production settings)
 - tsconfig.test.json (extends base, test settings)
 
 **Acceptance Criteria**:
+
 - [ ] Only 3 tsconfig files remain
 - [ ] All build outputs work correctly
 - [ ] CI/CD pipeline updated
@@ -208,6 +216,7 @@ private findHandler(target: Function, index: number): Handler | undefined {
 ### 3.1 Research & Planning
 
 **Tasks**:
+
 - [ ] Document current decorator usage patterns
 - [ ] Research new ECMAScript decorator proposal
 - [ ] Evaluate compatibility options
@@ -216,11 +225,13 @@ private findHandler(target: Function, index: number): Handler | undefined {
 ### 3.2 Implement New Decorators
 
 **Files to modify**:
+
 - `src/decorators/service.decorator.ts`
 - `src/decorators/inject.decorator.ts`
 - `src/decorators/inject-many.decorator.ts`
 
 **New syntax example**:
+
 ```typescript
 // Old (legacy)
 export function Service<T>(options?: ServiceOptions<T>): ClassDecorator {
@@ -248,6 +259,7 @@ Since standard decorators don't emit metadata by default, we need to:
 **Recommendation**: Start with Option A for backward compatibility, add Option B as opt-in.
 
 **Acceptance Criteria**:
+
 - [ ] New decorators work with standard decorator proposal
 - [ ] Backward compatibility maintained (dual mode)
 - [ ] Migration guide documented
@@ -274,29 +286,27 @@ Since standard decorators don't emit metadata by default, we need to:
 ```
 
 **New jest.config.js**:
+
 ```javascript
 /** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
-  collectCoverageFrom: [
-    'src/**/*.ts',
-    '!src/**/index.ts',
-    '!src/**/*.interface.ts'
-  ],
+  collectCoverageFrom: ['src/**/*.ts', '!src/**/index.ts', '!src/**/*.interface.ts'],
   coverageThreshold: {
     global: {
       statements: 80,
       branches: 75,
       functions: 80,
-      lines: 80
-    }
-  }
+      lines: 80,
+    },
+  },
 };
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Jest 29 installed and working
 - [ ] All tests pass
 - [ ] Coverage meets 80% threshold
@@ -314,6 +324,7 @@ module.exports = {
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Rollup 4 builds successfully
 - [ ] All output formats work (CJS, ESM)
 - [ ] Bundle size analyzed and optimized
@@ -321,6 +332,7 @@ module.exports = {
 ### 4.3 Add Integration Tests
 
 **New test structure**:
+
 ```
 test/
 ├── unit/           (existing)
@@ -331,6 +343,7 @@ test/
 ```
 
 **Acceptance Criteria**:
+
 - [ ] Integration test suite created
 - [ ] End-to-end workflows tested
 - [ ] Container inheritance scenarios tested
@@ -346,12 +359,14 @@ test/
 ### 5.1 Remove Deprecated Container.of()
 
 **Current behavior**:
+
 ```typescript
 // Deprecated - auto-creates container
 const container = Container.of('some-id');
 ```
 
 **New API**:
+
 ```typescript
 // Explicit creation
 const container = new ContainerInstance('some-id');
@@ -361,6 +376,7 @@ const container = ContainerRegistry.getContainer('some-id');
 ```
 
 **Migration path**:
+
 1. Deprecate in v0.10.x with warning
 2. Remove in v1.0.0
 
@@ -370,12 +386,11 @@ Replace generic `Error` with specific error types:
 
 ```typescript
 // New errors to create
-- ContainerDisposedError
-- ContainerRegistrationError
-- ServiceResolutionError
+-ContainerDisposedError - ContainerRegistrationError - ServiceResolutionError;
 ```
 
 **Acceptance Criteria**:
+
 - [ ] All custom errors implemented
 - [ ] Generic `Error` usage replaced
 - [ ] Error messages are helpful and actionable
@@ -386,24 +401,29 @@ Replace generic `Error` with specific error types:
 ## Versioning Strategy
 
 ### v0.11.0 - Phase 1 Complete
+
 - Critical bug fixes
 - Handler inheritance
 - Circular dependency detection
 
 ### v0.12.0 - Phase 2 Complete
+
 - TypeScript 5.x
 - Modern target ES2022
 - Consolidated configs
 
 ### v0.13.0 - Phase 3 Complete
+
 - New decorator support (dual mode)
 - Migration guide
 
 ### v0.14.0 - Phase 4 Complete
+
 - Modern build tools
 - Improved test coverage
 
 ### v1.0.0 - Phase 5 Complete
+
 - All breaking changes
 - Deprecated APIs removed
 - Full ESM support

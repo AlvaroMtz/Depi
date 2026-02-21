@@ -40,7 +40,7 @@ export class ContainerInstance {
    * Parent container for inheritance support.
    * When a container has a parent, it inherits handlers from the parent.
    */
-  private parent?: ContainerInstance;
+  private _parent?: ContainerInstance;
 
   /**
    * Tracks services currently being resolved to detect circular dependencies.
@@ -55,17 +55,48 @@ export class ContainerInstance {
 
   constructor(id: ContainerIdentifier, parent?: ContainerInstance) {
     this.id = id;
-    this.parent = parent;
+    if (parent) {
+      this._parent = parent;
+    }
 
-    ContainerRegistry.registerContainer(this);
+    // Don't register in constructor to avoid circular initialization
+    // Registration will happen when the container is accessed via ContainerRegistry
+  }
 
-    /**
-     * For backward compatibility: if no parent is specified and this is not the default container,
-     * inherit handlers from the default container.
-     * This maintains the legacy behavior while allowing proper parent-child relationships.
-     */
-    if (!parent && id !== 'default' && ContainerRegistry.defaultContainer) {
-      this.parent = ContainerRegistry.defaultContainer;
+  /**
+   * Gets the parent container, lazily resolving to defaultContainer for backward compatibility.
+   */
+  private get parent(): ContainerInstance | undefined {
+    if (this._parent !== undefined) {
+      return this._parent;
+    }
+
+    // For backward compatibility: if no parent is specified and this is not the default container,
+    // use the default container as parent
+    if (this.id !== 'default') {
+      try {
+        const defaultContainer = ContainerRegistry.defaultContainer;
+        if (defaultContainer !== this) {
+          this._parent = defaultContainer;
+          return this._parent;
+        }
+      } catch {
+        // ContainerRegistry not yet initialized, ignore
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Registers the container with the ContainerRegistry.
+   * This is called separately to avoid circular initialization issues.
+   */
+  register(): void {
+    try {
+      ContainerRegistry.registerContainer(this);
+    } catch {
+      // Already registered or registry not ready, ignore
     }
   }
 
@@ -102,6 +133,7 @@ export class ContainerInstance {
     this.throwIfDisposed();
 
     const child = new ContainerInstance(childId, this);
+    child.register();
     return child;
   }
 
@@ -308,6 +340,7 @@ export class ContainerInstance {
           `Use 'new ContainerInstance("${containerId}")' or 'container.createChild("${containerId}")' instead.`
       );
       container = new ContainerInstance(containerId);
+      container.register();
     }
 
     return container;

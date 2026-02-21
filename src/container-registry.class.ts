@@ -21,7 +21,20 @@ export class ContainerRegistry {
    * The default global container. By default services are registered into this
    * container when registered via `Container.set()` or `@Service` decorator.
    */
-  public static readonly defaultContainer: ContainerInstance = new ContainerInstance('default');
+  private static _defaultContainer?: ContainerInstance;
+
+  /**
+   * Gets the default global container. Creates it on first access.
+   */
+  public static get defaultContainer(): ContainerInstance {
+    if (!ContainerRegistry._defaultContainer) {
+      const defaultContainer = new ContainerInstance('default');
+      // Register the default container after creation to avoid circular initialization
+      ContainerRegistry.containerMap.set('default', defaultContainer);
+      ContainerRegistry._defaultContainer = defaultContainer;
+    }
+    return ContainerRegistry._defaultContainer;
+  }
 
   /**
    * Registers the given container instance or throws an error.
@@ -33,18 +46,15 @@ export class ContainerRegistry {
    */
   public static registerContainer(container: ContainerInstance): void {
     if (container instanceof ContainerInstance === false) {
-      // TODO: Create custom error for this.
       throw new Error('Only ContainerInstance instances can be registered.');
     }
 
-    /** If we already set the default container (in index) then no-one else can register a default. */
-    if (!!ContainerRegistry.defaultContainer && container.id === 'default') {
-      // TODO: Create custom error for this.
-      throw new Error('You cannot register a container with the "default" ID.');
+    /** The default container is already registered during its creation */
+    if (container.id === 'default') {
+      return;
     }
 
     if (ContainerRegistry.containerMap.has(container.id)) {
-      // TODO: Create custom error for this.
       throw new Error('Cannot register container with same ID.');
     }
 
@@ -57,7 +67,7 @@ export class ContainerRegistry {
    * @param container the ID of the container
    */
   public static hasContainer(id: ContainerIdentifier): boolean {
-    return ContainerRegistry.containerMap.has(id);
+    return id === 'default' || ContainerRegistry.containerMap.has(id);
   }
 
   /**
@@ -67,10 +77,13 @@ export class ContainerRegistry {
    * @param container the ID of the container
    */
   public static getContainer(id: ContainerIdentifier): ContainerInstance {
+    if (id === 'default') {
+      return ContainerRegistry.defaultContainer;
+    }
+
     const registeredContainer = this.containerMap.get(id);
 
     if (registeredContainer === undefined) {
-      // TODO: Create custom error for this.
       throw new Error('No container is registered with the given ID.');
     }
 
@@ -88,10 +101,13 @@ export class ContainerRegistry {
    * @param container the container to remove from the registry
    */
   public static async removeContainer(container: ContainerInstance): Promise<void> {
+    if (container.id === 'default') {
+      throw new Error('Cannot remove the default container.');
+    }
+
     const registeredContainer = ContainerRegistry.containerMap.get(container.id);
 
     if (registeredContainer === undefined) {
-      // TODO: Create custom error for this.
       throw new Error('No container is registered with the given ID.');
     }
 
