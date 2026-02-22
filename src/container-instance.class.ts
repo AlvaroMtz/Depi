@@ -277,11 +277,11 @@ export class ContainerInstance implements AsyncDisposable {
     const asyncServices: Array<{ id: ServiceIdentifier; metadata: ServiceMetadata }> = [];
 
     // Collect all services that need initialization
-    for (const [id, metadata] of this.metadataMap) {
+    this.metadataMap.forEach((metadata, id) => {
       if (metadata.eager || metadata.async) {
         asyncServices.push({ id, metadata });
       }
-    }
+    });
 
     // Initialize all services concurrently
     await Promise.all(
