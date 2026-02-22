@@ -27,7 +27,7 @@
   },
   "peerDependenciesMeta": {
     "reflect-metadata": {
-      "optional": false
+      "optional": true
     }
   },
   "engines": {

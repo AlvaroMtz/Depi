@@ -11,6 +11,7 @@ import { ContainerIdentifier } from './types/container-identifier.type';
 import { Handler } from './interfaces/handler.interface';
 import { ContainerRegistry } from './container-registry.class';
 import { ContainerScope } from './types/container-scope.type';
+import { ContainerOptions } from './interfaces/container-options.interface';
 
 /**
  * TypeDI can have multiple containers.
@@ -73,11 +74,21 @@ export class ContainerInstance implements AsyncDisposable {
    */
   private disposed: boolean = false;
 
-  constructor(id: ContainerIdentifier, parent?: ContainerInstance) {
+  /**
+   * Container-level options that control lookup behavior.
+   */
+  private readonly _options: Pick<ContainerOptions, 'lookupStrategy' | 'allowSingletonLookup'>;
+
+  constructor(
+    id: ContainerIdentifier,
+    parent?: ContainerInstance,
+    options?: Partial<Pick<ContainerOptions, 'lookupStrategy' | 'allowSingletonLookup'>>
+  ) {
     this.id = id;
     if (parent) {
       this._parent = parent;
     }
+    this._options = { lookupStrategy: 'allowLookup', allowSingletonLookup: true, ...options };
 
     // Don't register in constructor to avoid circular initialization
     // Registration will happen when the container is accessed via ContainerRegistry
@@ -174,7 +185,12 @@ export class ContainerInstance implements AsyncDisposable {
   public get<T = unknown>(identifier: ServiceIdentifier<T>): T {
     this.throwIfDisposed();
 
-    const global = ContainerRegistry.defaultContainer.metadataMap.get(identifier);
+    /**
+     * When lookupStrategy is 'localOnly', any cross-container lookup is forbidden.
+     * We still honour allowSingletonLookup for the normal 'allowLookup' strategy.
+     */
+    const allowExternalLookup = this._options.lookupStrategy !== 'localOnly' && this._options.allowSingletonLookup;
+    const global = allowExternalLookup ? ContainerRegistry.defaultContainer.metadataMap.get(identifier) : undefined;
     const local = this.metadataMap.get(identifier);
     /** If the service is registered as global we load it from there, otherwise we use the local one. */
     const metadata = global?.scope === 'singleton' ? global : local;
@@ -198,6 +214,7 @@ export class ContainerInstance implements AsyncDisposable {
 
     /**
      * If it's the first time requested in the child container we load it from parent and set it.
+     * This path is only reachable when allowExternalLookup is true (lookupStrategy !== 'localOnly').
      */
     if (global && this !== ContainerRegistry.defaultContainer) {
       const clonedService = { ...global };
@@ -225,7 +242,8 @@ export class ContainerInstance implements AsyncDisposable {
   public async getAsync<T = unknown>(identifier: ServiceIdentifier<T>): Promise<T> {
     this.throwIfDisposed();
 
-    const global = ContainerRegistry.defaultContainer.metadataMap.get(identifier);
+    const allowExternalLookup = this._options.lookupStrategy !== 'localOnly' && this._options.allowSingletonLookup;
+    const global = allowExternalLookup ? ContainerRegistry.defaultContainer.metadataMap.get(identifier) : undefined;
     const local = this.metadataMap.get(identifier);
     const metadata = global?.scope === 'singleton' ? global : local;
 
@@ -269,9 +287,7 @@ export class ContainerInstance implements AsyncDisposable {
     await Promise.all(
       asyncServices.map(async ({ id, metadata }) => {
         if (metadata.value === EMPTY_VALUE) {
-          const value = metadata.async
-            ? await this.getServiceValueAsync(metadata)
-            : this.getServiceValue(metadata);
+          const value = metadata.async ? await this.getServiceValueAsync(metadata) : this.getServiceValue(metadata);
           // Update the metadata with the initialized value
           metadata.value = value;
         } else if (metadata.async && metadata.lifecycle?.onInit) {
@@ -289,7 +305,10 @@ export class ContainerInstance implements AsyncDisposable {
   public getMany<T = unknown>(identifier: ServiceIdentifier<T>): T[] {
     this.throwIfDisposed();
 
-    const globalIdMap = ContainerRegistry.defaultContainer.multiServiceIds.get(identifier);
+    const allowExternalLookup = this._options.lookupStrategy !== 'localOnly' && this._options.allowSingletonLookup;
+    const globalIdMap = allowExternalLookup
+      ? ContainerRegistry.defaultContainer.multiServiceIds.get(identifier)
+      : undefined;
     const localIdMap = this.multiServiceIds.get(identifier);
 
     /**
@@ -471,6 +490,7 @@ export class ContainerInstance implements AsyncDisposable {
         this.metadataMap.forEach(service => this.disposeServiceInstance(service));
         this.metadataMap.clear();
         this.multiServiceIds.clear();
+        this.handlers.length = 0;
         break;
       default:
         throw new Error('Received invalid reset strategy.');
@@ -703,7 +723,7 @@ export class ContainerInstance implements AsyncDisposable {
       let applies = false;
 
       while (currentTarget && currentTarget !== Object.prototype) {
-        if (handler.object.constructor === currentTarget) {
+        if (handler.object === currentTarget.prototype || handler.object === currentTarget) {
           applies = true;
           break;
         }

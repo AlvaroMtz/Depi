@@ -13,7 +13,8 @@ export class ContainerDisposedError extends TypeDIError {
   public containerId: string;
 
   constructor(containerId: string) {
-    const message = `Cannot perform operation on disposed container "${containerId}". ` +
+    const message =
+      `Cannot perform operation on disposed container "${containerId}". ` +
       `The container has been disposed and can no longer be used. Create a new container instance if needed.`;
 
     super(message, {

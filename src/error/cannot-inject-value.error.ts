@@ -18,7 +18,8 @@ export class CannotInjectValueError extends TypeDIError {
 
     super(message, {
       code: 'TDI-003',
-      suggestion: `Make sure reflect-metadata is imported and the service is registered. ` +
+      suggestion:
+        `Make sure reflect-metadata is imported and the service is registered. ` +
         `Don't use interfaces without service tokens as injection values.`,
       helpUrl: 'https://typedi.io/errors/TDI-003',
     });

@@ -1,11 +1,14 @@
+// Polyfill Symbol.metadata for TC39 Stage 3 decorator metadata proposal
+// Required for Stage 3 dual-mode decorator support
+if (typeof (Symbol as any).metadata === 'undefined') {
+  (Symbol as any).metadata = Symbol('Symbol.metadata');
+}
+
 /**
- * We have a hard dependency on reflect-metadata package. Without it the
- * dependency lookup won't work, so we warn users when it's not loaded.
+ * Returns true when reflect-metadata APIs needed by legacy decorators exist.
  */
-if (!Reflect || !(Reflect as any).getMetadata) {
-  throw new Error(
-    'TypeDI requires "Reflect.getMetadata" to work. Please import the "reflect-metadata" package at the very first line of your application.'
-  );
+export function checkReflectMetadata(): boolean {
+  return typeof Reflect !== 'undefined' && typeof (Reflect as any).getMetadata === 'function';
 }
 
 /** This is an internal package, so we don't re-export it on purpose. */

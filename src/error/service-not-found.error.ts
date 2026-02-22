@@ -25,14 +25,13 @@ export class ServiceNotFoundError extends TypeDIError {
       normalizedIdentifier = `Token<${identifier.name || 'UNSET_NAME'}>`;
     } else if (identifier && (identifier.name || identifier.prototype?.name)) {
       normalizedIdentifier =
-        identifier.name ||
-        (identifier.prototype as { name: string })?.name ||
-        '<UNKNOWN_IDENTIFIER>';
+        identifier.name || (identifier.prototype as { name: string })?.name || '<UNKNOWN_IDENTIFIER>';
     } else {
       normalizedIdentifier = String(identifier);
     }
 
-    const message = `Service with "${normalizedIdentifier}" identifier was not found in the container. ` +
+    const message =
+      `Service with "${normalizedIdentifier}" identifier was not found in the container. ` +
       `Register it before usage via explicitly calling the "Container.set" function or using the "@Service()" decorator.`;
 
     super(message, {

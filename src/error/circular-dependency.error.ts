@@ -27,11 +27,7 @@ export class CircularDependencyError extends TypeDIError {
       } else if (identifier instanceof Token) {
         return `Token<${identifier.name || 'UNSET_NAME'}>`;
       } else if (identifier && (identifier.name || identifier.prototype?.name)) {
-        return (
-          identifier.name ||
-          (identifier.prototype as { name: string })?.name ||
-          'UnknownService'
-        );
+        return identifier.name || (identifier.prototype as { name: string })?.name || 'UnknownService';
       }
       return String(identifier);
     })();
@@ -44,7 +40,8 @@ export class CircularDependencyError extends TypeDIError {
       })
       .join(' -> ');
 
-    const message = `Circular dependency detected for service "${normalizedIdentifier}". ` +
+    const message =
+      `Circular dependency detected for service "${normalizedIdentifier}". ` +
       `Resolution path: ${pathString} -> "${normalizedIdentifier}". ` +
       `Break the circular dependency by using lazy injection or refactoring your code.`;
 

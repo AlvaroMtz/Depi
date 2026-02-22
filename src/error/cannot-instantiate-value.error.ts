@@ -25,19 +25,19 @@ export class CannotInstantiateValueError extends TypeDIError {
       normalizedIdentifier = `Token<${identifier.name || 'UNSET_NAME'}>`;
     } else if (identifier && (identifier.name || identifier.prototype?.name)) {
       normalizedIdentifier =
-        identifier.name ||
-        (identifier.prototype as { name: string })?.name ||
-        '<UNKNOWN_IDENTIFIER>';
+        identifier.name || (identifier.prototype as { name: string })?.name || '<UNKNOWN_IDENTIFIER>';
     } else {
       normalizedIdentifier = String(identifier);
     }
 
-    const message = `Cannot instantiate the requested value for the "${normalizedIdentifier}" identifier. ` +
+    const message =
+      `Cannot instantiate the requested value for the "${normalizedIdentifier}" identifier. ` +
       `The related metadata doesn't contain a factory or a type to instantiate.`;
 
     super(message, {
       code: 'TDI-004',
-      suggestion: `Make sure the service is registered with a "type" or "factory" option. ` +
+      suggestion:
+        `Make sure the service is registered with a "type" or "factory" option. ` +
         `Use "@Service()" decorator or "Container.set({ id, type: MyClass })".`,
       helpUrl: 'https://typedi.io/errors/TDI-004',
     });
