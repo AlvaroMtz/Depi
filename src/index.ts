@@ -15,6 +15,7 @@ export * from './decorators/inject-many.decorator';
 export * from './decorators/inject.decorator';
 export * from './decorators/service.decorator';
 
+export * from './error/typedi-error.base';
 export * from './error/cannot-inject-value.error';
 export * from './error/cannot-instantiate-value.error';
 export * from './error/circular-dependency.error';

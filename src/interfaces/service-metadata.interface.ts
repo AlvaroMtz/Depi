@@ -5,6 +5,23 @@ import { ContainerScope } from '../types/container-scope.type';
 import { ServiceIdentifier } from '../types/service-identifier.type';
 
 /**
+ * Lifecycle hooks for async service initialization and cleanup.
+ */
+export interface ServiceLifecycleHooks {
+  /**
+   * Called after the service instance is created.
+   * Can be async for async initialization.
+   */
+  onInit?: (instance: unknown) => void | Promise<void>;
+
+  /**
+   * Called before the service is disposed.
+   * Can be async for async cleanup.
+   */
+  onDestroy?: (instance: unknown) => void | Promise<void>;
+}
+
+/**
  * Service metadata is used to initialize service and store its state.
  */
 export interface ServiceMetadata<Type = unknown> {
@@ -30,8 +47,13 @@ export interface ServiceMetadata<Type = unknown> {
    * Factory function used to initialize this service.
    * Can be regular function ("createCar" for example),
    * or other service which produces this instance ([CarFactory, "createCar"] for example).
+   * Can also be async to support async service creation.
    */
-  factory: [Constructable<unknown>, string] | CallableFunction | undefined;
+  factory:
+    | [Constructable<unknown>, string]
+    | ((container: ContainerInstance, id: ServiceIdentifier) => unknown)
+    | ((container: ContainerInstance, id: ServiceIdentifier) => Promise<unknown>)
+    | undefined;
 
   /**
    * Instance of the target class.
@@ -50,6 +72,17 @@ export interface ServiceMetadata<Type = unknown> {
    * _Note: This option is ignored for transient services._
    */
   eager: boolean;
+
+  /**
+   * Lifecycle hooks for service initialization and disposal.
+   */
+  lifecycle?: ServiceLifecycleHooks;
+
+  /**
+   * Indicates if this service requires async initialization.
+   * Set to true if the service has an async onInit hook or factory.
+   */
+  async?: boolean;
 
   /**
    * Map of containers referencing this metadata. This is used when a container

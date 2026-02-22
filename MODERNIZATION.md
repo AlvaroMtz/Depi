@@ -1,12 +1,12 @@
 # TypeDI Modernization Roadmap
 
 > Version: 0.10.0 → 1.0.0
-> Status: In Progress (Phase 2 Complete)
-> Last Updated: 2025-02-21
+> Status: In Progress (Phase 6-9, 14 Complete)
+> Last Updated: 2026-02-21
 
 ## Executive Summary
 
-TypeDI is a dependency injection library for TypeScript/Node.js that requires significant modernization to meet 2025 industry standards. This document outlines the planned modernization phases.
+TypeDI is a dependency injection library for TypeScript/Node.js undergoing modernization to meet 2026 industry standards. This document outlines the planned and completed modernization phases.
 
 ## Current State Analysis
 
@@ -14,20 +14,20 @@ TypeDI is a dependency injection library for TypeScript/Node.js that requires si
 
 | Metric             | Value  |
 | ------------------ | ------ |
-| TypeScript Version | 5.5.0  |
+| TypeScript Version | 5.7.0  |
 | Target ES          | ES2022 |
-| Total Files        | 22     |
+| Node.js Minimum    | 18.0.0 |
+| Total Files        | 25     |
 | Core Files         | 6      |
-| TODOs Resolved     | 10/14  |
-| Open Issues        | -      |
+| Phases Completed   | 1-5, 6-9, 14 |
 
 ### Known Technical Debt (Resolved)
 
 1. ~~**Container inheritance** - Handlers not properly inherited~~ ✅ Fixed
 2. ~~**Infinite loop bug** - `@Inject` decorator causes loop during property handler application~~ ✅ Fixed
 3. ~~**Prototype chain** - Only single-level parent lookup for inherited class handlers~~ ✅ Fixed
-4. **Deprecated APIs** - `Container.of()` auto-creation behavior (deprecation warning added)
-5. ~~**Missing custom errors** - Generic `Error` thrown in multiple places~~ ✅ `CircularDependencyError` added
+4. ~~**Deprecated APIs** - `Container.of()` auto-creation behavior~~ ✅ Removed in v0.16.0
+5. ~~**Missing custom errors** - Generic `Error` thrown in multiple places~~ ✅ All errors have custom classes
 
 ---
 
@@ -41,8 +41,6 @@ TypeDI is a dependency injection library for TypeScript/Node.js that requires si
 
 **Location**: `src/container-instance.class.ts`
 
-**Implementation**:
-
 - Added `parent` property to `ContainerInstance`
 - Created `getAllHandlers()` method with iterative traversal
 - Implemented `createChild()` for explicit child container creation
@@ -52,8 +50,6 @@ TypeDI is a dependency injection library for TypeScript/Node.js that requires si
 
 **Location**: `src/container-instance.class.ts`
 
-**Implementation**:
-
 - Added `resolutionStack` to track services being resolved
 - Created `CircularDependencyError` with helpful error messages
 - Property handlers applied AFTER value is set and service removed from resolution stack
@@ -62,8 +58,6 @@ TypeDI is a dependency injection library for TypeScript/Node.js that requires si
 ### 1.3 Fix Prototype Chain Traversal ✅
 
 **Location**: `src/container-instance.class.ts`
-
-**Implementation**:
 
 - `findHandler()` now traverses full prototype chain
 - `applyPropertyHandlers()` traverses prototype chain for inherited classes
@@ -81,12 +75,12 @@ TypeDI is a dependency injection library for TypeScript/Node.js that requires si
 
 | Package               | Old Version | New Version |
 | --------------------- | ----------- | ----------- |
-| TypeScript            | 4.9.5       | 5.5.0       |
+| TypeScript            | 4.9.5       | 5.7.0       |
 | Rollup                | 2.79.1      | 4.0.0       |
 | Jest                  | 27.5.1      | 29.7.0      |
 | ts-jest               | 27.1.4      | 29.1.0      |
 | Prettier              | 2.8.8       | 3.0.0       |
-| @typescript-eslint/\* | 5.62.0      | 7.0.0       |
+| @typescript-eslint/\* | 5.62.0      | 8.0.0       |
 
 ### 2.2 Update tsconfig.json ✅
 
@@ -103,16 +97,6 @@ TypeDI is a dependency injection library for TypeScript/Node.js that requires si
 }
 ```
 
-### 2.3 Fix Circular Initialization ✅
-
-**Location**: `src/container-registry.class.ts`, `src/container-instance.class.ts`
-
-**Implementation**:
-
-- Changed `defaultContainer` to lazy initialization via getter
-- Separated registration from construction to avoid circular initialization
-- `parent` property is now lazily resolved for backward compatibility
-
 ---
 
 ## Phase 3: Decorator Strategy ⚠️ POSTPONED
@@ -121,40 +105,7 @@ TypeDI is a dependency injection library for TypeScript/Node.js that requires si
 > **Duration**: Research Complete, Migration Postponed
 > **Risk**: High (breaking change)
 
-### Background
-
-TypeScript 5.0+ supports ECMAScript Stage 3 decorators, BUT they lack a critical feature: **automatic type metadata**.
-
-### The Metadata Problem
-
-TypeDI relies on TypeScript's `emitDecoratorMetadata` to automatically determine constructor parameter types:
-
-```typescript
-@Service()
-class ExampleService {
-  // TypeDI needs to know that "logger" is of type Logger
-  constructor(logger: Logger) {}
-}
-```
-
-With `emitDecoratorMetadata`, TypeScript emits:
-
-```javascript
-Reflect.defineMetadata('design:paramtypes', [Logger], ExampleService);
-```
-
-**ECMAScript Stage 3 decorators do NOT have this capability.**
-
-### Options Evaluated
-
-| Option                           | Description                                                       | Verdict               |
-| -------------------------------- | ----------------------------------------------------------------- | --------------------- |
-| **A. Keep Legacy Decorators**    | Continue using `experimentalDecorators` + `emitDecoratorMetadata` | ✅ **CHOSEN**         |
-| **B. Manual Type Specification** | Require all `@Inject()` to specify type explicitly                | ❌ Too breaking       |
-| **C. Custom Metadata System**    | Build a metadata collection system                                | ❌ Too complex        |
-| **D. Dual Mode**                 | Support both legacy and new decorators                            | ❌ Maintenance burden |
-
-### Decision: Keep Legacy Decorators
+### Decision: Keep Legacy Decorators ✅
 
 **Rationale**:
 
@@ -174,33 +125,15 @@ Reflect.defineMetadata('design:paramtypes', [Logger], ExampleService);
 }
 ```
 
-### Documentation Added
-
-Created `docs/DECORATORS.md` explaining:
-
-- Why TypeDI uses legacy decorators
-- How `emitDecoratorMetadata` enables automatic type inference
-- Future migration path if ECMAScript adds metadata capabilities
-- Workarounds for projects using Stage 3 decorators
-
 ---
 
-## Phase 4: Build System & Testing
+## Phase 4: Build System & Testing ✅ COMPLETE
 
-> **Goal**: Modernize build tools and improve test coverage
-> **Duration**: 1 week
-> **Risk**: Low
-
-### 4.1 Update Jest ✅ (Partially Complete)
+### 4.1 Update Jest ✅
 
 - Jest 27.5.1 → 29.7.0 ✅
 - ts-jest 27.1.4 → 29.1.0 ✅
-- Coverage thresholds adjusted for reality (branches: 70% → 60%) ✅
-
-**Remaining**:
-
-- [ ] Add integration test suite
-- [ ] Improve coverage for error classes
+- Coverage thresholds adjusted (branches: 60%) ✅
 
 ### 4.2 Update Rollup ✅
 
@@ -209,24 +142,9 @@ Created `docs/DECORATORS.md` explaining:
 
 ---
 
-## Phase 5: API Cleanup ✅
+## Phase 5: API Cleanup ✅ COMPLETE
 
-> **Goal**: Remove deprecated functionality and improve developer experience
-> **Duration**: 1 week
-> **Risk**: Medium (breaking changes)
-
-### 5.1 Remove Deprecated Container.of()
-
-**Status**: Deprecation warning added
-
-**Migration Path**:
-
-- v0.11.x: Warning added ✅
-- v1.0.0: Remove auto-creation behavior (breaking change)
-
-### 5.2 Additional Custom Errors ✅
-
-**Completed**:
+### 5.1 Additional Custom Errors ✅
 
 - `CircularDependencyError` ✅
 - `ContainerDisposedError` ✅
@@ -235,7 +153,273 @@ Created `docs/DECORATORS.md` explaining:
 
 ---
 
-## Versioning Strategy (Updated)
+## Phase 6: ESM-First & Modern Build ✅ COMPLETE
+
+> **Goal**: Prepare for ESM-first package structure
+> **Duration**: 1 week
+> **Risk**: Low
+
+### 6.1 Add exports field to package.json ✅
+
+**Location**: `package.json`
+
+```json
+{
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./types/index.d.ts",
+        "default": "./esm2015/index.js"
+      },
+      "require": {
+        "types": "./types/index.d.ts",
+        "default": "./cjs/index.js"
+      }
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+```
+
+### 6.2 Update to TypeScript 5.7 ✅
+
+- Updated from 5.5.0 to 5.7.0
+- Added peer dependency for `reflect-metadata`
+
+### 6.3 CI Matrix with Node.js versions ✅
+
+**Location**: `.github/workflows/continuous-integration-workflow.yml`
+
+- Added testing matrix: Node.js 18.x, 20.x, 22.x
+- Updated actions to v4
+- Added caching for npm
+
+---
+
+## Phase 7: Async Services Native Support ✅ COMPLETE
+
+> **Goal**: First-class support for async service initialization
+> **Duration**: 2 weeks
+> **Risk**: Medium
+
+### 7.1 Async Container Methods ✅
+
+**Location**: `src/container-instance.class.ts`
+
+```typescript
+class ContainerInstance {
+  /**
+   * Asynchronously retrieves and initializes a service.
+   */
+  async getAsync<T>(identifier: ServiceIdentifier<T>): Promise<T>
+
+  /**
+   * Initialize all eager and async services in the container.
+   */
+  async init(): Promise<void>
+
+  /**
+   * Implements AsyncDisposable for `await using` statements.
+   */
+  [Symbol.asyncDispose](): Promise<void>
+}
+```
+
+### 7.2 Lifecycle Hooks ✅
+
+**Location**: `src/interfaces/service-metadata.interface.ts`
+
+```typescript
+interface ServiceLifecycleHooks {
+  onInit?: (instance: unknown) => void | Promise<void>
+  onDestroy?: (instance: unknown) => void | Promise<void>
+}
+```
+
+**Usage**:
+
+```typescript
+Container.set({
+  id: 'db',
+  factory: async () => await connectDatabase(),
+  lifecycle: {
+    onInit: async (db) => await db.migrate(),
+    onDestroy: async (db) => await db.close()
+  }
+});
+
+// Initialize all services
+await Container.init();
+```
+
+---
+
+## Phase 8: Enhanced Error Messages ✅ COMPLETE
+
+> **Goal**: Better developer experience with actionable error information
+> **Duration**: 1 week
+> **Risk**: Low
+
+### 8.1 TypeDIError Base Class ✅
+
+**Location**: `src/error/typedi-error.base.ts`
+
+```typescript
+class TypeDIError extends Error {
+  readonly code: string;           // e.g., "TDI-001"
+  readonly suggestion?: string;    // How to fix
+  readonly helpUrl?: string;       // Documentation link
+
+  toConsoleString(): string;       // Color-formatted output
+}
+```
+
+### 8.2 Error Codes ✅
+
+| Code  | Error                        |
+| ----- | ---------------------------- |
+| TDI-001 | ServiceNotFoundError        |
+| TDI-002 | CircularDependencyError     |
+| TDI-003 | CannotInjectValueError      |
+| TDI-004 | CannotInstantiateValueError |
+| TDI-005 | ContainerDisposedError      |
+| TDI-006 | ContainerRegistrationError  |
+| TDI-007 | ServiceResolutionError      |
+
+**Example Output**:
+
+```
+[TDI-001] Service with "DatabaseService" identifier was not found.
+
+💡 Suggestion: Register it before usage via "Container.set()" or use the "@Service()" decorator.
+
+📚 Learn more: https://typedi.io/errors/TDI-001
+```
+
+---
+
+## Phase 9: TypeScript 5.7+ Modern Types ✅ COMPLETE
+
+> **Goal**: Leverage modern TypeScript features
+> **Duration**: 1 week
+> **Risk**: Low
+
+### 9.1 AsyncDisposable Implementation ✅
+
+**Location**: `src/container-instance.class.ts`
+
+```typescript
+export class ContainerInstance implements AsyncDisposable {
+  [Symbol.asyncDispose](): Promise<void> {
+    return this.dispose();
+  }
+}
+```
+
+**Usage with `await using`**:
+
+```typescript
+{
+  await using container = new ContainerInstance('temp');
+  container.set({ id: 'service', type: Service });
+  // Automatically disposed at end of scope
+}
+```
+
+---
+
+## Phase 10: Performance & Observability ⏳ PLANNED
+
+> **Goal**: Performance predictability and built-in observability
+> **Duration**: 2 weeks
+> **Risk**: Medium
+
+**Planned Features**:
+
+- `request` scope for web frameworks
+- Built-in metrics (resolution times, service counts)
+- Optional OpenTelemetry integration
+- DevTools for container inspection
+
+---
+
+## Phase 11: Security & Supply Chain ⏳ PLANNED
+
+> **Goal**: Security hardening
+> **Duration**: 1 week
+> **Risk**: Low
+
+**Planned Features**:
+
+- npm audit in CI
+- SBOM generation (CycloneDX)
+- Dependabot with automerge
+- Provably signed releases (Sigstore)
+
+---
+
+## Phase 12: Testing Modernization ⏳ PLANNED
+
+> **Goal**: Modern, fast test suite
+> **Duration**: 1 week
+> **Risk**: Low
+
+**Planned Features**:
+
+- Evaluate Vitest migration
+- Property-based testing (fast-check)
+- Snapshot tests for error messages
+- Benchmark regression suite
+
+---
+
+## Phase 13: Documentation & DX ⏳ PLANNED
+
+> **Goal**: Top-tier developer experience
+> **Duration**: 2 weeks
+> **Risk**: Low
+
+**Planned Features**:
+
+- TypeDoc for API documentation
+- Interactive examples (StackBlitz)
+- Migration guide v0.x → v1.0
+- ESLint plugin for best practices
+- VS Code extension with snippets
+
+---
+
+## Phase 14: Container.of() Removal ✅ COMPLETE
+
+> **Goal**: Remove deprecated auto-creation behavior
+> **Duration**: 1 week
+> **Risk**: Medium (breaking change)
+
+### 14.1 Auto-Creation Removed ✅
+
+**Location**: `src/container-instance.class.ts`
+
+- `Container.of()` now throws `ServiceNotFoundError` if container doesn't exist
+- No longer auto-creates containers
+- Users must use `new ContainerInstance(id)` or `container.createChild(id)`
+
+**Migration Guide**:
+
+```typescript
+// OLD (v0.15.x)
+const container = Container.of('my-container');
+
+// NEW (v0.16.0+)
+const container = new ContainerInstance('my-container');
+// OR
+const container = ContainerInstance.of('default').createChild('my-container');
+```
+
+---
+
+## Versioning Strategy
 
 ### v0.11.0 - Phase 1 Complete ✅
 
@@ -249,46 +433,54 @@ Created `docs/DECORATORS.md` explaining:
 - TypeScript 5.5
 - Modern target ES2022
 - Updated build tools
-- Container registry improvements
 
-### v0.13.0 - Phase 3 (Skipped)
+### v0.13.0 - Phase 3 ✅
 
 - Decorator migration postponed
-- Documentation added explaining decision
+- Documentation added
 
 ### v0.14.0 - Phase 4 Complete ✅
 
 - Integration test suite
-- Improved test coverage (119 tests, 89.36% statements)
-- Error class coverage improvements
+- Improved test coverage
 
 ### v0.15.0 - Phase 5 Complete ✅
 
-- Additional custom error classes (ContainerDisposedError, ContainerRegistrationError, ServiceResolutionError)
-- Enhanced error handling and developer experience
-- 6 custom error classes with comprehensive test coverage
+- Custom error classes
+- Enhanced error handling
+
+### v0.16.0 - Phase 6-9, 14 Complete ✅
+
+- ESM-first package structure with `exports` field
+- TypeScript 5.7
+- Node.js 18+ requirement
+- Async services support (`getAsync`, `init`, lifecycle hooks)
+- Enhanced error messages with codes and suggestions
+- `AsyncDisposable` implementation (`Symbol.asyncDispose`)
+- `Container.of()` auto-creation removed
+- CI matrix with Node.js 18, 20, 22
 
 ### v1.0.0 - Future Release
 
-- All breaking changes
-- Container.of() auto-creation removed
-- Full ESM support
-- Major version bump
+- All remaining breaking changes
+- Full ESM transition
+- Request scope
+- Observability features
 
 ---
 
 ## Open Questions
 
-1. ~~**Metadata approach**: Should we invest in a custom metadata solution or stick with `reflect-metadata`?~~ ✅ **DECIDED**: Keep `reflect-metadata` with legacy decorators
-2. **Backward compatibility**: How many minor versions should we maintain decorator compatibility? Keep until ECMAScript adds metadata
-3. **ESM-first**: Should we make ESM the primary module format in v1.0?
-4. **Async services**: The code mentions async service support in comments - is this planned?
+1. ✅ **Metadata approach**: Keep `reflect-metadata` with legacy decorators
+2. ✅ **Async services**: Implemented in Phase 7
+3. **ESM-first**: Should we make ESM the primary format in v1.0?
+4. **Request scope**: Should be prioritized for web framework integration?
 
 ---
 
 ## References
 
 - [ECMAScript Decorators Proposal](https://github.com/tc39/proposal-decorators)
-- [TypeScript 5.0 Decorators Documentation](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-0.html#decorators)
+- [TypeScript 5.7 Documentation](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-7.html)
 - [reflect-metadata Package](https://www.npmjs.com/package/reflect-metadata)
-- [Why TypeScript Needs emitDecoratorMetadata](https://github.com/microsoft/TypeScript/issues/27319)
+- [AsyncDisposable Proposal](https://github.com/tc39/proposal-async-explicit-resource-management)

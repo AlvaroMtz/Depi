@@ -1,11 +1,15 @@
+import { TypeDIError } from './typedi-error.base';
 import { ServiceIdentifier } from '../types/service-identifier.type';
 import { Token } from '../token.class';
 
 /**
  * Thrown when service resolution fails for reasons other than "not found".
  * Use ServiceNotFoundError for missing services.
+ *
+ * Error code: TDI-007
+ * @docs https://typedi.io/errors/TDI-007
  */
-export class ServiceResolutionError extends Error {
+export class ServiceResolutionError extends TypeDIError {
   public name = 'ServiceResolutionError';
 
   /** Normalized identifier name used in the error message. */
@@ -17,30 +21,36 @@ export class ServiceResolutionError extends Error {
   /** Underlying error that caused the resolution failure */
   public cause?: Error;
 
-  get message(): string {
-    let message = `Failed to resolve service "${this.normalizedIdentifier}" in container "${this.containerId}".`;
+  constructor(containerId: string, identifier: ServiceIdentifier, cause?: Error) {
+    let normalizedIdentifier: string;
 
-    if (this.cause) {
-      message += ` Underlying error: ${this.cause.message}`;
+    if (typeof identifier === 'string') {
+      normalizedIdentifier = identifier;
+    } else if (identifier instanceof Token) {
+      normalizedIdentifier = `Token<${identifier.name || 'UNSET_NAME'}>`;
+    } else if (identifier && (identifier.name || identifier.prototype?.name)) {
+      normalizedIdentifier =
+        `MaybeConstructable<${identifier.name}>` ||
+        `MaybeConstructable<${(identifier.prototype as { name: string })?.name}>`;
+    } else {
+      normalizedIdentifier = String(identifier);
     }
 
-    return message;
-  }
+    let message = `Failed to resolve service "${normalizedIdentifier}" in container "${containerId}".`;
+    if (cause) {
+      message += ` Underlying error: ${cause.message}`;
+    }
 
-  constructor(containerId: string, identifier: ServiceIdentifier, cause?: Error) {
-    super();
+    super(message, {
+      code: 'TDI-007',
+      suggestion: cause
+        ? `Fix the underlying error and ensure the service is properly registered.`
+        : `Check that the service is registered and its dependencies can be resolved.`,
+      helpUrl: 'https://typedi.io/errors/TDI-007',
+    });
 
     this.containerId = containerId;
     this.cause = cause;
-
-    if (typeof identifier === 'string') {
-      this.normalizedIdentifier = identifier;
-    } else if (identifier instanceof Token) {
-      this.normalizedIdentifier = `Token<${identifier.name || 'UNSET_NAME'}>`;
-    } else if (identifier && (identifier.name || identifier.prototype?.name)) {
-      this.normalizedIdentifier =
-        `MaybeConstructable<${identifier.name}>` ||
-        `MaybeConstructable<${(identifier.prototype as { name: string })?.name}>`;
-    }
+    this.normalizedIdentifier = normalizedIdentifier;
   }
 }
