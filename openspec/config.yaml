@@ -1,0 +1,22 @@
+artifact_store:
+  mode: engram
+
+project:
+  name: typedi
+  description: Modernización de TypeDI para estándares de DI 2026
+  working_branch: develop
+
+rules:
+  proposal:
+    - Siempre incluir rollback plan
+    - Siempre incluir success criteria medibles
+    - Separar claramente In Scope / Out of Scope
+  spec:
+    - Usar formato Given/When/Then para escenarios
+    - Cada req debe tener al menos un escenario
+  design:
+    - Incluir ADR (Architecture Decision Records) para decisiones no obvias
+    - Referenciar archivos afectados con paths exactos
+  tasks:
+    - Tasks deben ser implementables en menos de 4 horas cada una
+    - Agrupar por fase/módulo
