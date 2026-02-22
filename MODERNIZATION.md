@@ -12,13 +12,13 @@ TypeDI is a dependency injection library for TypeScript/Node.js undergoing moder
 
 ### Metrics
 
-| Metric             | Value  |
-| ------------------ | ------ |
-| TypeScript Version | 5.7.0  |
-| Target ES          | ES2022 |
-| Node.js Minimum    | 18.0.0 |
-| Total Files        | 25     |
-| Core Files         | 6      |
+| Metric             | Value        |
+| ------------------ | ------------ |
+| TypeScript Version | 5.7.0        |
+| Target ES          | ES2022       |
+| Node.js Minimum    | 18.0.0       |
+| Total Files        | 25           |
+| Core Files         | 6            |
 | Phases Completed   | 1-5, 6-9, 14 |
 
 ### Known Technical Debt (Resolved)
@@ -213,17 +213,17 @@ class ContainerInstance {
   /**
    * Asynchronously retrieves and initializes a service.
    */
-  async getAsync<T>(identifier: ServiceIdentifier<T>): Promise<T>
+  async getAsync<T>(identifier: ServiceIdentifier<T>): Promise<T>;
 
   /**
    * Initialize all eager and async services in the container.
    */
-  async init(): Promise<void>
+  async init(): Promise<void>;
 
   /**
    * Implements AsyncDisposable for `await using` statements.
    */
-  [Symbol.asyncDispose](): Promise<void>
+  [Symbol.asyncDispose](): Promise<void>;
 }
 ```
 
@@ -233,8 +233,8 @@ class ContainerInstance {
 
 ```typescript
 interface ServiceLifecycleHooks {
-  onInit?: (instance: unknown) => void | Promise<void>
-  onDestroy?: (instance: unknown) => void | Promise<void>
+  onInit?: (instance: unknown) => void | Promise<void>;
+  onDestroy?: (instance: unknown) => void | Promise<void>;
 }
 ```
 
@@ -245,9 +245,9 @@ Container.set({
   id: 'db',
   factory: async () => await connectDatabase(),
   lifecycle: {
-    onInit: async (db) => await db.migrate(),
-    onDestroy: async (db) => await db.close()
-  }
+    onInit: async db => await db.migrate(),
+    onDestroy: async db => await db.close(),
+  },
 });
 
 // Initialize all services
@@ -268,18 +268,18 @@ await Container.init();
 
 ```typescript
 class TypeDIError extends Error {
-  readonly code: string;           // e.g., "TDI-001"
-  readonly suggestion?: string;    // How to fix
-  readonly helpUrl?: string;       // Documentation link
+  readonly code: string; // e.g., "TDI-001"
+  readonly suggestion?: string; // How to fix
+  readonly helpUrl?: string; // Documentation link
 
-  toConsoleString(): string;       // Color-formatted output
+  toConsoleString(): string; // Color-formatted output
 }
 ```
 
 ### 8.2 Error Codes ✅
 
-| Code  | Error                        |
-| ----- | ---------------------------- |
+| Code    | Error                       |
+| ------- | --------------------------- |
 | TDI-001 | ServiceNotFoundError        |
 | TDI-002 | CircularDependencyError     |
 | TDI-003 | CannotInjectValueError      |
