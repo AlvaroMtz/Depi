@@ -1,4 +1,6 @@
 import {
+  getLegacyMetadataIfAvailable,
+  getRequiredLegacyMetadata,
   isLegacyMetadataAvailable,
   LEGACY_METADATA_MISSING_MESSAGE,
   requireLegacyMetadata,
@@ -38,6 +40,31 @@ describe('metadata-mode util', () => {
       (Reflect as any).getMetadata = undefined;
 
       expect(() => requireLegacyMetadata('custom message')).toThrow('custom message');
+    } finally {
+      (Reflect as any).getMetadata = originalGetMetadata;
+    }
+  });
+
+  it('returns undefined from optional metadata reader when reflect API is unavailable', () => {
+    const originalGetMetadata = (Reflect as any).getMetadata;
+
+    try {
+      (Reflect as any).getMetadata = undefined;
+
+      expect(getLegacyMetadataIfAvailable('design:paramtypes', class TestClass {})).toBeUndefined();
+    } finally {
+      (Reflect as any).getMetadata = originalGetMetadata;
+    }
+  });
+
+  it('reads metadata from required metadata reader when reflect API is available', () => {
+    const originalGetMetadata = (Reflect as any).getMetadata;
+
+    try {
+      (Reflect as any).getMetadata = jest.fn(() => ['dependency']);
+
+      expect(getRequiredLegacyMetadata('design:paramtypes', class TestClass {})).toEqual(['dependency']);
+      expect((Reflect as any).getMetadata).toHaveBeenCalledWith('design:paramtypes', expect.any(Function), undefined);
     } finally {
       (Reflect as any).getMetadata = originalGetMetadata;
     }

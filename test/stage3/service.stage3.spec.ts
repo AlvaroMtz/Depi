@@ -55,4 +55,20 @@ describe('Stage 3 @Service lifecycle basics', () => {
     expect(Container.get(EagerStage3Service)).toBeInstanceOf(EagerStage3Service);
     expect(EagerStage3Service.instances).toBe(1);
   });
+
+  it('resolves Stage 3 services even when Reflect.getMetadata is unavailable', () => {
+    const originalGetMetadata = (Reflect as any).getMetadata;
+
+    try {
+      (Reflect as any).getMetadata = undefined;
+
+      class Stage3ServiceWithoutReflect {}
+
+      registerStage3Service(Stage3ServiceWithoutReflect);
+
+      expect(Container.get(Stage3ServiceWithoutReflect)).toBeInstanceOf(Stage3ServiceWithoutReflect);
+    } finally {
+      (Reflect as any).getMetadata = originalGetMetadata;
+    }
+  });
 });

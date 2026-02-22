@@ -1,7 +1,7 @@
 import { Token } from '../token.class';
 import { Constructable } from '../types/constructable.type';
 import { ServiceIdentifier } from '../types/service-identifier.type';
-import { requireLegacyMetadata } from './metadata-mode.util';
+import { getRequiredLegacyMetadata } from './metadata-mode.util';
 
 /**
  * Helper function used in inject decorators to resolve the received identifier to
@@ -42,16 +42,14 @@ export function resolveToTypeWrapper(
 
   /** If no explicit type is set and handler registered for a class property, we need to get the property type. */
   if (!typeOrIdentifier && propertyName) {
-    requireLegacyMetadata();
-    const identifier = (Reflect as any).getMetadata('design:type', target, propertyName);
+    const identifier = getRequiredLegacyMetadata('design:type', target, propertyName) as ServiceIdentifier;
 
     typeWrapper = { eagerType: identifier, lazyType: () => identifier };
   }
 
   /** If no explicit type is set and handler registered for a constructor parameter, we need to get the parameter types. */
   if (!typeOrIdentifier && typeof index == 'number' && Number.isInteger(index)) {
-    requireLegacyMetadata();
-    const paramTypes: ServiceIdentifier[] = (Reflect as any).getMetadata('design:paramtypes', target, propertyName);
+    const paramTypes = getRequiredLegacyMetadata('design:paramtypes', target, propertyName) as ServiceIdentifier[];
     /** It's not guaranteed, that we find any types for the constructor. */
     const identifier = paramTypes?.[index];
 

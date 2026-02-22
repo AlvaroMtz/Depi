@@ -12,6 +12,7 @@ import { Handler } from './interfaces/handler.interface';
 import { ContainerRegistry } from './container-registry.class';
 import { ContainerScope } from './types/container-scope.type';
 import { ContainerOptions } from './interfaces/container-options.interface';
+import { getLegacyMetadataIfAvailable } from './utils/metadata-mode.util';
 
 /**
  * TypeDI can have multiple containers.
@@ -599,7 +600,8 @@ export class ContainerInstance implements AsyncDisposable {
       if (!serviceMetadata.factory && serviceMetadata.type) {
         const constructableTargetType: Constructable<unknown> = serviceMetadata.type;
         // setup constructor parameters for a newly initialized service
-        const paramTypes: unknown[] = (Reflect as any)?.getMetadata('design:paramtypes', constructableTargetType) || [];
+        const paramTypes =
+          (getLegacyMetadataIfAvailable('design:paramtypes', constructableTargetType) as unknown[]) || [];
         const params = this.initializeParams(constructableTargetType, paramTypes);
 
         // "extra feature" - always pass container instance as the last argument to the service function
@@ -851,7 +853,8 @@ export class ContainerInstance implements AsyncDisposable {
       }
     } else if (serviceMetadata.type) {
       const constructableTargetType: Constructable<unknown> = serviceMetadata.type;
-      const paramTypes: unknown[] = (Reflect as any)?.getMetadata('design:paramtypes', constructableTargetType) || [];
+      const paramTypes =
+        (getLegacyMetadataIfAvailable('design:paramtypes', constructableTargetType) as unknown[]) || [];
       const params = this.initializeParams(constructableTargetType, paramTypes);
       params.push(this);
       value = new constructableTargetType(...params);
