@@ -177,6 +177,71 @@
 
 ---
 
+## FASE 4 — Rename TypeDI -> Depi con compatibilidad
+
+### Grupo H: Inventario y decision de compatibilidad
+
+- [x] **4.1 — Inventario ejecutable de superficies TypeDI/typedi**
+  - **Objetivo**: Consolidar un inventario unico de referencias de branding para ejecutar el rename por lotes sin omisiones.
+  - **Archivos objetivo**:
+    - Nuevo: `openspec/changes/modernizacion-typedi/fase-4-inventario-rename.md`
+    - Revisados como entrada: `README.md`, `docs/**/*.md`, `.github/workflows/*.yml`, `package.json`, `CHANGELOG.md`
+  - **Dependencias**: ninguna
+  - **Aceptacion**:
+    - El inventario separa categorias `public API`, `package/distribution`, `documentation`, `repo metadata`.
+    - Incluye tabla de equivalencias (`typedi` -> `depi`, `TypeDI` -> `Depi`) y estado por item (`pending`, `done`).
+
+- [x] **4.2 — Definir y documentar estrategia de compatibilidad (bridge/deprecacion)**
+  - **Objetivo**: Fijar una estrategia unica para consumidores existentes de `typedi` y dejarla trazable antes de tocar distribucion.
+  - **Archivos objetivo**:
+    - Nuevo: `openspec/changes/modernizacion-typedi/adr-fase-4-compatibilidad.md`
+    - Actualizar: `openspec/changes/modernizacion-typedi/plan-fase-4-depi-rename.md`
+  - **Dependencias**: 4.1
+  - **Aceptacion**:
+    - El ADR explicita decision entre opcion A (shim) u opcion B (deprecacion) con ventana de soporte y politica de versionado.
+    - Queda definido el impacto esperado en runtime y semver (sin break funcional de API).
+
+### Grupo I: Ejecucion de rename por capas
+
+- [ ] **4.3 — Aplicar rename en package metadata y branding tecnico**
+  - **Objetivo**: Alinear metadata y mensajes publicos del paquete con branding Depi, respetando la estrategia definida en 4.2.
+  - **Archivos objetivo**:
+    - `package.json`
+    - `src/error/*.ts` (mensajes/codigos con branding TypeDI)
+    - `src/index.ts` (textos o warnings publicos)
+  - **Dependencias**: 4.2
+  - **Aceptacion**:
+    - `package.json` refleja naming/repositorio/keywords coherentes con Depi segun decision 4.2.
+    - No quedan nuevos mensajes runtime introduciendo `TypeDI`/`typedi` fuera de compatibilidad explicita.
+
+- [ ] **4.4 — Actualizar documentacion principal y guia de migracion**
+  - **Objetivo**: Publicar una ruta de adopcion clara para usuarios y eliminar referencias activas de branding anterior en docs primarias.
+  - **Archivos objetivo**:
+    - `README.md`
+    - `docs/README.md`
+    - Nuevo: `docs/MIGRATION-TYPEDI-TO-DEPI.md`
+    - `CHANGELOG.md`
+  - **Dependencias**: 4.2, 4.3
+  - **Aceptacion**:
+    - README y docs de entrada usan instalacion/import canonicos de Depi.
+    - La migration guide cubre instalacion, imports, CI scripts y politica de deprecacion.
+    - `CHANGELOG.md` incluye seccion explicita de "sin cambio funcional" y excepciones si existen.
+
+- [ ] **4.5 — Verificacion automatizada de rename y checklist final**
+  - **Objetivo**: Asegurar que el rename queda consistente y verificable en CI antes del release.
+  - **Archivos objetivo**:
+    - Nuevo: `scripts/check-branding-consistency.mjs`
+    - `package.json` (script `check:branding`)
+    - `.github/workflows/continuous-integration-workflow.yml`
+    - `openspec/changes/modernizacion-typedi/fase-4-inventario-rename.md`
+  - **Dependencias**: 4.3, 4.4
+  - **Aceptacion**:
+    - `npm run check:branding` falla si detecta referencias no permitidas a `TypeDI`/`typedi` fuera de whitelist de compatibilidad.
+    - CI ejecuta el check de branding.
+    - El inventario de 4.1 queda cerrado con todos los items en `done` o justificados como excepcion temporal.
+
+---
+
 ## Mapa de dependencias
 
 ```
@@ -200,6 +265,11 @@
 2.8 → 2.5
 2.9 → 2.6, 2.7
 2.10 → 2.8, 2.9
+4.1 → (ninguna)
+4.2 → 4.1
+4.3 → 4.2
+4.4 → 4.2, 4.3
+4.5 → 4.3, 4.4
 ```
 
 ## Orden de implementación recomendado
@@ -209,3 +279,5 @@
 **Sesión 3 (Fase 2 foundation)**: 2.1 → 2.2 → 2.3 → 2.4
 **Sesión 4 (Fase 2 decorators)**: 2.5 → 2.6 → 2.7
 **Sesión 5 (Fase 2 tests)**: 2.8 → 2.9 → 2.10
+**Sesión 6 (Fase 4 inventario + decision)**: 4.1 → 4.2
+**Sesión 7 (Fase 4 ejecucion + cierre)**: 4.3 → 4.4 → 4.5

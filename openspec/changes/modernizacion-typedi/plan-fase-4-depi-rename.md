@@ -20,6 +20,12 @@ Completar el rebranding tecnico y documental de TypeDI a Depi, preservando una r
 - Definir ventana de soporte (por ejemplo 2 minor releases) para alias/bridge.
 - Publicar politica de versionado: cambio de branding sin break de API en runtime.
 
+Decision 4.2 (cerrada):
+
+- Se adopta opcion A (shim temporal) con deprecacion guiada.
+- Ventana de compatibilidad: 2 minor releases; retiro del shim en la siguiente major.
+- Referencia normativa: `openspec/changes/modernizacion-typedi/adr-fase-4-compatibilidad.md`.
+
 ### Fase 4.3 - Ejecucion por capas
 
 - Actualizar README, badges, snippets de instalacion/import y ejemplos.
