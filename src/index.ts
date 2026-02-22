@@ -1,3 +1,5 @@
+import { isLegacyMetadataAvailable } from './utils/metadata-mode.util';
+
 // Polyfill Symbol.metadata for TC39 Stage 3 decorator metadata proposal
 // Required for Stage 3 dual-mode decorator support
 if (typeof (Symbol as any).metadata === 'undefined') {
@@ -8,7 +10,7 @@ if (typeof (Symbol as any).metadata === 'undefined') {
  * Returns true when reflect-metadata APIs needed by legacy decorators exist.
  */
 export function checkReflectMetadata(): boolean {
-  return typeof Reflect !== 'undefined' && typeof (Reflect as any).getMetadata === 'function';
+  return isLegacyMetadataAvailable();
 }
 
 /** This is an internal package, so we don't re-export it on purpose. */

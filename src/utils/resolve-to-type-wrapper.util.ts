@@ -1,14 +1,7 @@
 import { Token } from '../token.class';
 import { Constructable } from '../types/constructable.type';
 import { ServiceIdentifier } from '../types/service-identifier.type';
-
-function ensureReflectMetadataAvailable(): void {
-  if (typeof Reflect === 'undefined' || typeof (Reflect as any).getMetadata !== 'function') {
-    throw new TypeError(
-      'reflect-metadata is required for legacy decorator mode. Install it via: npm install reflect-metadata'
-    );
-  }
-}
+import { requireLegacyMetadata } from './metadata-mode.util';
 
 /**
  * Helper function used in inject decorators to resolve the received identifier to
@@ -49,7 +42,7 @@ export function resolveToTypeWrapper(
 
   /** If no explicit type is set and handler registered for a class property, we need to get the property type. */
   if (!typeOrIdentifier && propertyName) {
-    ensureReflectMetadataAvailable();
+    requireLegacyMetadata();
     const identifier = (Reflect as any).getMetadata('design:type', target, propertyName);
 
     typeWrapper = { eagerType: identifier, lazyType: () => identifier };
@@ -57,7 +50,7 @@ export function resolveToTypeWrapper(
 
   /** If no explicit type is set and handler registered for a constructor parameter, we need to get the parameter types. */
   if (!typeOrIdentifier && typeof index == 'number' && Number.isInteger(index)) {
-    ensureReflectMetadataAvailable();
+    requireLegacyMetadata();
     const paramTypes: ServiceIdentifier[] = (Reflect as any).getMetadata('design:paramtypes', target, propertyName);
     /** It's not guaranteed, that we find any types for the constructor. */
     const identifier = paramTypes?.[index];
