@@ -20,7 +20,7 @@ export function InjectMany(token: Token<any>): Function;
 export function InjectMany(
   typeOrIdentifier?: ((type?: never) => Constructable<unknown>) | ServiceIdentifier<unknown>
 ): Function {
-  return function (target: any, contextOrPropertyName?: any, index?: number): any {
+  return function (target: unknown, contextOrPropertyName?: unknown, index?: number): unknown {
     if (isStage3Context(contextOrPropertyName)) {
       /** Stage 3 path — contextOrPropertyName is a ClassFieldDecoratorContext or similar */
       const context = contextOrPropertyName as {
@@ -42,8 +42,10 @@ export function InjectMany(
 
       /** Field decorator — return an initializer function that resolves the services */
       return function (this: any, _initialValue: unknown): unknown {
+        const targetConstructor = (this as { constructor: Constructable<unknown> }).constructor;
+
         if (typeOrIdentifier === undefined) {
-          throw new CannotInjectValueError(this.constructor, context.name as string);
+          throw new CannotInjectValueError(targetConstructor, String(context.name));
         }
 
         /** Resolve the service identifier from the provided token/type */
@@ -58,7 +60,7 @@ export function InjectMany(
         }
 
         if (serviceId === undefined || serviceId === Object) {
-          throw new CannotInjectValueError(this.constructor, context.name as string);
+          throw new CannotInjectValueError(targetConstructor, String(context.name));
         }
 
         return ContainerRegistry.defaultContainer.getMany<unknown>(serviceId);
@@ -66,15 +68,16 @@ export function InjectMany(
     } else {
       /** Legacy path — target/propertyName/index as per experimentalDecorators */
       const propertyName = contextOrPropertyName as string | Symbol;
-      const typeWrapper = resolveToTypeWrapper(typeOrIdentifier, target, propertyName, index);
+      const legacyTarget = target as Object;
+      const typeWrapper = resolveToTypeWrapper(typeOrIdentifier, legacyTarget, propertyName, index);
 
       /** If no type was inferred, or the general Object type was inferred we throw an error. */
       if (typeWrapper === undefined || typeWrapper.eagerType === undefined || typeWrapper.eagerType === Object) {
-        throw new CannotInjectValueError(target as Constructable<unknown>, propertyName as string);
+        throw new CannotInjectValueError(legacyTarget as Constructable<unknown>, propertyName as string);
       }
 
       ContainerRegistry.defaultContainer.registerHandler({
-        object: target as Constructable<unknown>,
+        object: legacyTarget as Constructable<unknown>,
         propertyName: propertyName as string,
         index: index,
         value: containerInstance => {
@@ -82,7 +85,7 @@ export function InjectMany(
 
           /** If no type was inferred lazily, or the general Object type was inferred we throw an error. */
           if (evaluatedLazyType === undefined || evaluatedLazyType === Object) {
-            throw new CannotInjectValueError(target as Constructable<unknown>, propertyName as string);
+            throw new CannotInjectValueError(legacyTarget as Constructable<unknown>, propertyName as string);
           }
 
           return containerInstance.getMany<unknown>(evaluatedLazyType);

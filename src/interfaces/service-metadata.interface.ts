@@ -58,7 +58,7 @@ export interface ServiceMetadata<Type = unknown> {
   /**
    * Instance of the target class.
    */
-  value: unknown | Symbol;
+  value: unknown;
 
   /**
    * Allows to setup multiple instances the different classes under a single service id string or token.

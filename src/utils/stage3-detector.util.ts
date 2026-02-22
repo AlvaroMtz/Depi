@@ -7,5 +7,5 @@
  * Legacy decorator second arguments are either undefined (class), a string (method/property), or a number (parameter).
  */
 export function isStage3Context(arg: unknown): arg is object & { kind: string } {
-  return typeof arg === 'object' && arg !== null && 'kind' in (arg as object);
+  return typeof arg === 'object' && arg !== null && 'kind' in arg;
 }

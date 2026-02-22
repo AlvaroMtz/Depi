@@ -136,8 +136,8 @@ export class ContainerInstance implements AsyncDisposable {
    * Uses iterative approach to avoid stack overflow with deep hierarchies.
    */
   private getAllHandlers(): Handler[] {
-    const result: Handler[] = [];
-    let current: ContainerInstance | undefined = this;
+    const result: Handler[] = [...this.handlers];
+    let current = this.parent;
 
     // Collect handlers from all containers in the hierarchy
     // Use a simple iteration - no recursion to avoid stack overflow
@@ -197,7 +197,7 @@ export class ContainerInstance implements AsyncDisposable {
 
     /** This should never happen as multi services are masked with custom token in Container.set. */
     if (metadata && metadata.multiple === true) {
-      throw new Error(`Cannot resolve multiple values for ${identifier.toString()} service!`);
+      throw new Error(`Cannot resolve multiple values for ${String(identifier)} service!`);
     }
 
     /** Otherwise it's returned from the current container. */
@@ -248,7 +248,7 @@ export class ContainerInstance implements AsyncDisposable {
     const metadata = global?.scope === 'singleton' ? global : local;
 
     if (metadata && metadata.multiple === true) {
-      throw new Error(`Cannot resolve multiple values for ${identifier.toString()} service!`);
+      throw new Error(`Cannot resolve multiple values for ${String(identifier)} service!`);
     }
 
     if (metadata) {
@@ -361,7 +361,7 @@ export class ContainerInstance implements AsyncDisposable {
 
     /** If the incoming metadata is marked as multiple we mask the ID and continue saving as single value. */
     if (serviceOptions.multiple) {
-      const maskedToken = new Token(`MultiMaskToken-${newMetadata.id.toString()}`);
+      const maskedToken = new Token(`MultiMaskToken-${String(newMetadata.id)}`);
       const existingMultiGroup = this.multiServiceIds.get(newMetadata.id);
 
       if (existingMultiGroup) {
