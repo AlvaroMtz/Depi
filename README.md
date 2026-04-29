@@ -39,7 +39,7 @@ As a last step, you need to enable emitting decorator metadata in your TypeScrip
 "emitDecoratorMetadata": true,
 "experimentalDecorators": true,
 ```
-
+hola hola
 Now you are ready to use Depi with TypeScript!
 
 ## Basic Usage
@@ -64,7 +64,7 @@ class ExampleService {
     public injectedService: ExampleInjectedService
   ) {}
 }
-
+hola 
 const serviceInstance = Container.get(ExampleService);
 // we request an instance of ExampleService from Depi
 
